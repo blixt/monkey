@@ -1,0 +1,21 @@
+application: mnk
+version: 1
+runtime: python
+api_version: 1
+
+handlers:
+- url: /favicon\.ico
+  mime_type: image/gif
+  static_files: misc/favicon.gif
+  upload: misc/favicon\.gif
+
+- url: /robots.txt
+  static_files: misc/robots.txt
+  upload: misc/robots\.txt
+
+- url: /(.*\.(css|js))
+  static_files: \2/\1
+  upload: (css|js)/(.*\.\1)
+
+- url: /.*
+  script: main.py

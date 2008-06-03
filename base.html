@@ -1,0 +1,12 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>{% block page_title %}Page{% endblock %} &laquo; {% block site_title %}Site{% endblock %}</title>{% block resources %}
+<link href="/site.css" rel="stylesheet" type="text/css" />
+{% endblock %}</head>
+<body>
+{% block site_header %}{% endblock %}
+<div id="body">{% block content %}{% endblock %}</div>
+<p id="user">{% if user %}Logged in as <em>{{ user.nickname }}</em> (<a href="{{ logout_url }}">Log out</a>){% else %}Not logged in (<a href="{{ login_url }}">Log in</a>){% endif %}</p>
+</body>
+</html>
