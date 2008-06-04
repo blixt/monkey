@@ -15,6 +15,14 @@ from google.appengine.ext.webapp import template
 
 import demjson
 
+def contains(sequence, value):
+    """A recursive version of the 'in' operator.
+    """
+    for i in sequence:
+        if i == value or (hasattr(i, '__iter__') and contains(i, value)):
+            return True
+    return False
+
 class ExtendedHandler(webapp.RequestHandler):
     """An extension to the webapp RequestHandler which automatically handles
     exceptions and enables various shortcuts.
@@ -67,7 +75,7 @@ class ServiceHandler(webapp.RequestHandler):
                 args = {}
                 for arg in self.request.params:
                     if arg.startswith('_'): continue
-                    args[str(arg)] = self.request.params[arg]
+                    args[str(arg)] = demjson.decode(self.request.params[arg])
 
                 attr = getattr(self, action)
                 out['status'] = 'success'
@@ -75,7 +83,7 @@ class ServiceHandler(webapp.RequestHandler):
             except Exception, e:
                 out['status'] = 'error'
                 out['response'] = { 'message': str(e),
-                                    'type': str(type(e)) }
+                                    'type': e.__class__.__name__ }
         else:
             out['status'] = 'list'
             out['response'] = {}
