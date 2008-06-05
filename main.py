@@ -54,15 +54,27 @@ class GameService(util.ServiceHandler):
         player = monkey.Player.get_current()
         player.join(game)
 
+        return self.status(game_id)
+
     def list(self, states = ['waiting', 'playing', 'aborted', 'draw', 'win']):
         games = []
         for game in monkey.Game.gql('WHERE state IN :1 '
                                     'ORDER BY last_update DESC', states):
-            games.append({ 'id': game.key().id(),
-                           'rule_set': { 'id': game.rule_set.key().id(),
-                                         'name': game.rule_set.name },
-                           'state': game.state,
-                           'last_update': str(game.last_update) })
+            player = monkey.Player.get_current()
+            rules = game.rule_set
+
+            games.append({
+                'id': game.key().id(),
+                'players': [monkey.Player.get(p).user.nickname()
+                            for p in game.players],
+                 'rule_set': { 'id': rules.key().id(),
+                               'name': rules.name,
+                               'num_players': rules.num_players },
+                'playable': game.state == 'playing' and
+                            player.key() in game.players,
+                'state': game.state,
+                'last_update': str(game.last_update) })
+
         return games
         
     def move(self, game_id, x, y):
@@ -74,12 +86,12 @@ class GameService(util.ServiceHandler):
 
         return self.status(game_id)
 
-    def new_ruleset(self, name, m, n, k, p = 1, q = 1, num_players = 2):
+    def new_rule_set(self, name, m, n, k, p = 1, q = 1, num_players = 2):
         if not re.match('^[\\w]([\\w&\'\\- ]{0,13}[\\w\'!])$', name):
             raise ValueError('Invalid name.')
 
         rule_set = monkey.RuleSet(name = name,
-                                  player = monkey.Player.get_current(),
+                                  author = monkey.Player.get_current(),
                                   num_players = num_players,
                                   m = m, n = n, k = k,
                                   p = p, q = q)
@@ -87,16 +99,34 @@ class GameService(util.ServiceHandler):
 
         return rule_set.key().id()
 
+    def rule_sets(self):
+        rule_sets = []
+        for rule_set in monkey.RuleSet.all():
+            rule_sets.append({ 'name': rule_set.name,
+                               'num_games': rule_set.games.count(),
+                               'num_players': rule_set.num_players,
+                               'm': rule_set.m, 'n': rule_set.n,
+                               'k': rule_set.k, 'p': rule_set.p,
+                               'q': rule_set.q })
+        return rule_sets
+
     def status(self, game_id):
         """Gets the status of game.
         """
         game = monkey.Game.get_by_id(game_id)
         if not game: raise ValueError('Invalid game id.')
 
-        return { 'players': [monkey.Player.get(p).user.email()
+        pkey = monkey.Player.get_current().key()
+        if pkey in game.players:
+            playing_as = game.players.index(pkey) + 1
+        else:
+            playing_as = 0
+        
+        return { 'players': [monkey.Player.get(p).user.nickname()
                              for p in game.players],
                  'board': game.unpack_board(),
-                 'turn': game.turn,
+                 'playing_as': playing_as,
+                 'current_player': game.rule_set.whose_turn(game.turn),
                  'state': game.state }
 
 class HomePage(util.ExtendedHandler):

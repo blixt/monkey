@@ -35,7 +35,7 @@ subsequent turns.
 from google.appengine.api import users
 from google.appengine.ext import db
 
-import re, string, util
+import math, random, re, string, util
 
 class Error(Exception):
     """Base of all exceptions in the monkey module."""
@@ -76,6 +76,9 @@ class RuleSet(db.Model):
     num_players = db.IntegerProperty(choices = (2, 3, 4, 5, 6, 7, 8, 9),
                                      default = 2,
                                      verbose_name = 'Number of players')
+    exact = db.BooleanProperty(default = False,
+                               verbose_name = 'Number of consequtive stones '
+                                              'must be exact for a win')
     m = db.IntegerProperty(default = 19, validator = lambda v: v > 0,
                            verbose_name = 'Board width')
     n = db.IntegerProperty(default = 19, validator = lambda v: v > 0,
@@ -87,24 +90,42 @@ class RuleSet(db.Model):
     q = db.IntegerProperty(default = 1, validator = lambda v: v > 0,
                            verbose_name = 'Stones first turn')
 
-    def test(self, board, turn, x, y):
-        cx, cy, cz = 0, 0, 0
-        for i in range(-self.k + 1, self.k - 1):
-            tx, ty = x + i, y + i
-            # Test horizontal
-            if tx >= 0 and tx < self.m:
-                cx += 1 if board[tx][y] == turn else -cx
-            # Test vertical
-            if ty >= 0 and ty < self.n:
-                cy += 1 if board[x][ty] == turn else -cy
-            # Test diagonal
-            if tx >= 0 and ty >= 0 and tx < self.m and ty < self.n:
-                cz += 1 if board[tx][ty] == turn else -cz
+    def is_win(self, board, player, x, y):
+        """Tests whether a winning line for the specified player crosses the
+        given coordinates on the supplied board.
+        """
+        if self.exact:
+            raise NotImplementedError('Support for exact k requirement has not '
+                                      'been implemented yet')
 
-            if self.k in (cx, cy, cz):
+        ca, cb, cc, cd = 0, 0, 0, 0
+        for i in range(-self.k + 1, self.k - 1):
+            tx, txi, ty = x + i, x - i, y + i
+            # Test horizontal -
+            if tx >= 0 and tx < self.m:
+                ca += 1 if board[tx][y] == player else -ca
+            # Test vertical |
+            if ty >= 0 and ty < self.n:
+                cb += 1 if board[x][ty] == player else -cb
+            # Test diagonal \
+            if tx >= 0 and ty >= 0 and tx < self.m and ty < self.n:
+                cc += 1 if board[tx][ty] == player else -cc
+            # Test diagonal /
+            if txi >= 0 and ty >= 0 and txi < self.m and ty < self.n:
+                cd += 1 if board[txi][ty] == player else -cd
+
+            if not self.exact and self.k in (ca, cb, cc, cd):
                 return True
 
         return False
+
+    def whose_turn(self, turn):
+        """Determines whose turn it is based on the rule set and a zero-based
+        turn index.
+        """
+        if turn < self.q: return 1
+        return int(
+            (math.floor((turn - self.q) / self.p) + 1) % self.num_players + 1)
 
 class Game(db.Model):
     """The data structure for an m,n,k,p,q-game.
@@ -115,8 +136,7 @@ class Game(db.Model):
     added = db.DateTimeProperty(auto_now_add = True)
     last_update = db.DateTimeProperty(auto_now = True)
     players = db.ListProperty(item_type = db.Key)
-    turn = db.IntegerProperty(choices = (1, 2, 3, 4, 5, 6, 7, 8, 9),
-                              default = 1)
+    turn = db.IntegerProperty(default = 0)
     data = db.StringListProperty()
     rule_set = db.ReferenceProperty(reference_class = RuleSet,
                                     required = True,
@@ -133,6 +153,7 @@ class Game(db.Model):
         self.players.append(player.key())
 
         if len(self.players) == self.rule_set.num_players:
+            random.shuffle(self.players)
             self.state = 'playing'
         
         self.put()
@@ -140,17 +161,23 @@ class Game(db.Model):
     def move(self, player, x, y):
         if self.state != 'playing': raise MoveError('Game not in play.')
 
-        turn = self.players.index(player.key()) + 1
-        if self.turn != turn: raise MoveError('Not player\'s turn.')
+        rs = self.rule_set
+        np = rs.num_players
+        m, n, k, p, q = rs.m, rs.n, rs.k, rs.p, rs.q
+
+        whose_turn = rs.whose_turn(self.turn)
+        player_turn = self.players.index(player.key()) + 1
+
+        if whose_turn != player_turn: raise MoveError('Not player\'s turn.')
 
         board = self.unpack_board()
-        if (x < 0 or x >= self.rule_set.m or
-            y < 0 or y >= self.rule_set.n or
+        if (x < 0 or x >= m or
+            y < 0 or y >= n or
             board[x][y]): raise MoveError('Invalid tile position.')
 
-        board[x][y] = turn
+        board[x][y] = whose_turn
         # There's a win according to the rule set.
-        if self.rule_set.test(board, turn, x, y):
+        if rs.is_win(board, player_turn, x, y):
             player.wins += 1
             for pkey in self.players:
                 if pkey == player.key(): continue
@@ -165,9 +192,9 @@ class Game(db.Model):
                 p.draws += 1
                 p.put()
             self.state = 'draw'
-        # Next player's turn.
+        # Next turn.
         else:
-            self.turn = self.turn % self.rule_set.num_players + 1
+            self.turn += 1
 
         self.put()
 

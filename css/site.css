@@ -1,0 +1,30 @@
+div.monkey div.game table {
+    border: #000 solid 2px;
+    border-collapse: collapse;
+}
+
+div.monkey div.game td {
+    border: #ddd solid 1px;
+    cursor: pointer;
+    height: 50px;
+    padding: 0;
+    width: 50px;
+}
+
+div.monkey div.game td span {
+    display: none;
+}
+
+div.monkey div.game td.hover {
+    background: #ffc;
+}
+
+div.monkey div.game td.player-1 {
+    background: #080;
+    cursor: not-allowed;
+}
+
+div.monkey div.game td.player-2 {
+    background: #c00;
+    cursor: default;
+}

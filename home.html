@@ -1,6 +1,13 @@
 {% extends "base_site.html" %}
 
-{% block page_title %}Welcome{% endblock %}
+{% block resources %}{{ block.super }}<script src="/mootools.js" type="text/javascript"></script>
+<script src="/monkey.js" type="text/javascript"></script>
+{% endblock %}
+
+{% block page_title %}Play{% endblock %}
 
 {% block content %}
+<h2>Play</h2>
+<script type="text/javascript">var monkey = new MonkeyClient()</script>
+<p>See full source at <a href="http://code.google.com/p/monkey-web/">http://code.google.com/p/monkey-web/</a>.</p>
 {% endblock %}
