@@ -37,6 +37,7 @@ var ServiceClient = new Class({
 
         var sc = this;
         var req = new Request.JSON({
+            secure: false,
             url: sc._path + action,
             onComplete: function (result) {
                 switch (result.status) {
@@ -226,10 +227,11 @@ var MonkeyClient = new Class({
                         new Element('td', {
                             'class': 'open slot'
                         }).adopt(
-                            new Element('button', {
+                            new Element('a', {
                                 events: {
                                     click: this.joinGame.bind(this, g.id)
                                 },
+                                href: '#',
                                 text: 'Join game'
                             })
                         ):
@@ -248,8 +250,6 @@ var MonkeyClient = new Class({
     
     handleStatus: function (game) {
         if (game !== false) {
-            this.turn = game.turn;
-
             var pa = game.playing_as;
             var cp = game.current_player;
 
@@ -278,27 +278,40 @@ var MonkeyClient = new Class({
                     break;
             }
             
+            this.html.game.set('class', 'game player-' + game.playing_as);
             this.html.gameStatus.set('text', status);
-            this.html.gameBoard.empty();
 
             var width = game.board.length, height = game.board[0].length;
-            for (var y = 0; y < height; y++) {
-                var row = new Element('tr').inject(this.html.gameBoard);
+            if (this.turn === null) {
+                this.html.cells = [];
+                this.html.gameBoard.empty();
 
-                for (var x = 0; x < width; x++) {
-                    var player = game.board[x][y];
-                    new Element('td', {
-                        events: {
-                            click: this.move.bind(this, [x, y]),
-                            mouseenter: function () { this.addClass('hover'); },
-                            mouseleave: function () { this.removeClass('hover'); }
-                        },
-                        'class': player ? 'player-' + player : 'empty'
-                    }).adopt(
-                        new Element('span', { text: player })
-                    ).inject(row);
+                for (var y = 0; y < height; y++) {
+                    var row = new Element('tr').inject(this.html.gameBoard);
+                    for (var x = 0; x < width; x++) {
+                        if (!this.html.cells[x]) this.html.cells[x] = [];
+
+                        var player = game.board[x][y];
+                        this.html.cells[x][y] = new Element('td', {
+                            events: {
+                                click: this.move.bind(this, [x, y]),
+                                mouseenter: function () { this.addClass('hover'); },
+                                mouseleave: function () { this.removeClass('hover'); }
+                            },
+                            'class': player ? 'player-' + player : 'empty'
+                        }).inject(row);
+                    }
+                }
+            } else {
+                for (var y = 0; y < height; y++) {
+                    for (var x = 0; x < width; x++) {
+                        var player = game.board[x][y];
+                        this.html.cells[x][y].set('class', player ? 'player-' + player : 'empty');
+                    }
                 }
             }
+
+            this.turn = game.turn;
         }
         
         $clear(this.timer);
@@ -344,6 +357,7 @@ var MonkeyClient = new Class({
             case MonkeyClient.Mode.game:
                 this.html.game.dispose();
                 this.html.gameBoard.empty();
+                this.html.gameStatus.set('text', 'Please wait...');
 
                 this.gameId = null;
                 this.turn = null;

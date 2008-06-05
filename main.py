@@ -59,7 +59,8 @@ class GameService(util.ServiceHandler):
     def list(self, states = ['waiting', 'playing', 'aborted', 'draw', 'win']):
         games = []
         for game in monkey.Game.gql('WHERE state IN :1 '
-                                    'ORDER BY last_update DESC', states):
+                                    'ORDER BY last_update DESC '
+                                    'LIMIT 10', states):
             player = monkey.Player.get_current()
             rules = game.rule_set
 
@@ -87,7 +88,7 @@ class GameService(util.ServiceHandler):
         return self.status(game_id)
 
     def new_rule_set(self, name, m, n, k, p = 1, q = 1, num_players = 2):
-        if not re.match('^[\\w]([\\w&\'\\- ]{0,13}[\\w\'!])$', name):
+        if not re.match('^[\\w]([\\w&\'\\- ]{0,28}[\\w\'!])$', name):
             raise ValueError('Invalid name.')
 
         rule_set = monkey.RuleSet(name = name,

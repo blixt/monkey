@@ -99,7 +99,7 @@ class RuleSet(db.Model):
                                       'been implemented yet')
 
         ca, cb, cc, cd = 0, 0, 0, 0
-        for i in range(-self.k + 1, self.k - 1):
+        for i in range(-self.k + 1, self.k):
             tx, txi, ty = x + i, x - i, y + i
             # Test horizontal -
             if tx >= 0 and tx < self.m:

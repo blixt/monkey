@@ -22,7 +22,7 @@
     padding: 0;
 }
 
-body {
+body, html {
     background: #333;
     color: #fff;
     font: large/1.3em Verdana, sans-serif;
@@ -71,29 +71,48 @@ div.monkey div.game table {
 }
 
 div.monkey div.game td {
+    background: #fff url(tiles.gif) 0 21px no-repeat;
     border: #ddd solid 1px;
-    cursor: pointer;
-    height: 50px;
+    cursor: not-allowed;
+    height: 21px;
     padding: 0;
-    width: 50px;
+    width: 21px;
 }
 
-div.monkey div.game td span {
-    display: none;
+div.monkey div.game td.empty {
+    cursor: pointer;
 }
 
-div.monkey div.game td.hover {
-    background: #ffc;
+div.monkey div.game.player-1 td.hover {
+    background-position: 0 0;
+}
+
+div.monkey div.game.player-2 td.hover {
+    background-position: 0 -19px;
+}
+
+div.monkey div.game.player-3 td.hover {
+    background-position: 0 -38px;
+}
+
+div.monkey div.game.player-4 td.hover {
+    background-position: 0 -57px;
 }
 
 div.monkey div.game td.player-1 {
-    background: #080;
-    cursor: not-allowed;
+    background-position: -38px 0;
 }
 
 div.monkey div.game td.player-2 {
-    background: #c00;
-    cursor: default;
+    background-position: -38px -19px;
+}
+
+div.monkey div.game td.player-3 {
+    background-position: -38px -38px;
+}
+
+div.monkey div.game td.player-4 {
+    background-position: -38px -57px;
 }
 
 div.monkey div.lobby .action {
