@@ -17,6 +17,10 @@ handlers:
   static_files: \2/\1
   upload: (css|js)/(.*\.\1)
 
+- url: /(.*\.(gif|jpg|png))
+  static_files: img/\1
+  upload: img/.+\.(gif|jpg|png)
+
 - url: /.*
   script: main.py
   login: required

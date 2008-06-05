@@ -192,9 +192,9 @@ class Game(db.Model):
                 p.draws += 1
                 p.put()
             self.state = 'draw'
+
         # Next turn.
-        else:
-            self.turn += 1
+        self.turn += 1
 
         self.put()
 

@@ -1,6 +1,73 @@
+#body {
+    background: #fff;
+    color: #111;
+    margin: 70px 50px 40px;
+    padding: 15px;
+}
+
+#user {
+    font-size: medium;
+    line-height: 40px;
+    position: absolute;
+    right: 55px;
+    top: 30px;
+}
+
+#user a {
+    color: #8f0;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: #333;
+    color: #fff;
+    font: large/1.3em Verdana, sans-serif;
+}
+
+h1 {
+    height: 40px;
+    left: 50px;
+    position: absolute;
+    top: 20px;
+}
+
+h1 a {
+    color: #8f0;
+    font-family: Georgia, serif;
+    line-height: 40px;
+    text-decoration: none;
+}
+
+h2, h3, h4, h5, h6 {
+    font-family: Georgia, serif;
+    line-height: 1.6em;
+}
+
+p {
+    margin-bottom: .5em;
+}
+
+table {
+    width: 100%;
+}
+
+th {
+    text-align: left;
+}
+
+/* MoNKey! client-specific styles */
+div.monkey button {
+    font-size: large;
+}
+
 div.monkey div.game table {
     border: #000 solid 2px;
     border-collapse: collapse;
+    width: auto;
 }
 
 div.monkey div.game td {
@@ -27,4 +94,41 @@ div.monkey div.game td.player-1 {
 div.monkey div.game td.player-2 {
     background: #c00;
     cursor: default;
+}
+
+div.monkey div.lobby .action {
+    text-align: center;
+    width: 150px;
+}
+
+div.monkey div.lobby td {
+    border-color: #ddd;
+    border-style: solid;
+    border-width: 1px 0;
+    font-size: medium;
+    padding: .2em .5em;
+}
+
+div.monkey div.lobby td.no-games {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+}
+
+div.monkey div.lobby td.slot, div.monkey div.lobby td.slot button {
+    font-size: small;
+    line-height: 1em;
+}
+
+div.monkey div.lobby th {
+    font-family: Georgia, serif;
+}
+
+div.monkey select {
+    font-size: large;
+    margin-right: .5em;
+}
+
+div.monkey table {
+    margin: 1em auto;
 }

@@ -102,7 +102,8 @@ class GameService(util.ServiceHandler):
     def rule_sets(self):
         rule_sets = []
         for rule_set in monkey.RuleSet.all():
-            rule_sets.append({ 'name': rule_set.name,
+            rule_sets.append({ 'id': rule_set.key().id(),
+                               'name': rule_set.name,
                                'num_games': rule_set.games.count(),
                                'num_players': rule_set.num_players,
                                'm': rule_set.m, 'n': rule_set.n,
@@ -110,11 +111,13 @@ class GameService(util.ServiceHandler):
                                'q': rule_set.q })
         return rule_sets
 
-    def status(self, game_id):
+    def status(self, game_id, turn = None):
         """Gets the status of game.
         """
         game = monkey.Game.get_by_id(game_id)
         if not game: raise ValueError('Invalid game id.')
+
+        if turn != None and game.turn == turn: return False
 
         pkey = monkey.Player.get_current().key()
         if pkey in game.players:
@@ -122,12 +125,15 @@ class GameService(util.ServiceHandler):
         else:
             playing_as = 0
         
-        return { 'players': [monkey.Player.get(p).user.nickname()
-                             for p in game.players],
-                 'board': game.unpack_board(),
-                 'playing_as': playing_as,
-                 'current_player': game.rule_set.whose_turn(game.turn),
-                 'state': game.state }
+        return {
+            'players': [monkey.Player.get(p).user.nickname()
+                        for p in game.players],
+            'board': game.unpack_board(),
+            'playing_as': playing_as,
+            'current_player': game.rule_set.whose_turn(
+                game.turn if game.state == 'playing' else game.turn - 1),
+            'state': game.state,
+            'turn': game.turn }
 
 class HomePage(util.ExtendedHandler):
     def get(self):

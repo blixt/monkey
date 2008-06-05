@@ -23,6 +23,8 @@ def contains(sequence, value):
             return True
     return False
 
+TEMPLATE_BASE = 'templates/'
+
 class ExtendedHandler(webapp.RequestHandler):
     """An extension to the webapp RequestHandler which automatically handles
     exceptions and enables various shortcuts.
@@ -48,7 +50,7 @@ class ExtendedHandler(webapp.RequestHandler):
         else:
             values['login_url'] = users.create_login_url(path)
 
-        self.response.out.write(template.render(tpath, values))
+        self.response.out.write(template.render(TEMPLATE_BASE + tpath, values))
 
 class ServiceHandler(webapp.RequestHandler):
     """Opens up all attributes that don't start with an underscore to HTTP
