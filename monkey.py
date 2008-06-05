@@ -51,6 +51,7 @@ class MoveError(Error):
 
 class Player(db.Model):
     user = db.UserProperty()
+    nickname = db.StringProperty()
     draws = db.IntegerProperty(default = 0)
     losses = db.IntegerProperty(default = 0)
     wins = db.IntegerProperty(default = 0)
@@ -60,7 +61,8 @@ class Player(db.Model):
         curuser = users.get_current_user()
         player = Player.gql('WHERE user = :1', curuser).get()
         if not player:
-            player = Player(user = curuser)
+            player = Player(user = curuser,
+                            nickname = curuser.nickname())
             player.put()
 
         return player
@@ -136,7 +138,7 @@ class Game(db.Model):
     added = db.DateTimeProperty(auto_now_add = True)
     last_update = db.DateTimeProperty(auto_now = True)
     players = db.ListProperty(item_type = db.Key)
-    turn = db.IntegerProperty(default = 0)
+    turn = db.IntegerProperty(default = -1)
     data = db.StringListProperty()
     rule_set = db.ReferenceProperty(reference_class = RuleSet,
                                     required = True,
@@ -155,6 +157,7 @@ class Game(db.Model):
         if len(self.players) == self.rule_set.num_players:
             random.shuffle(self.players)
             self.state = 'playing'
+            self.turn = 0
         
         self.put()
 
@@ -179,6 +182,7 @@ class Game(db.Model):
         # There's a win according to the rule set.
         if rs.is_win(board, player_turn, x, y):
             player.wins += 1
+            player.put()
             for pkey in self.players:
                 if pkey == player.key(): continue
                 p = Player.get(pkey)

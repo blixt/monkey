@@ -56,23 +56,31 @@ class GameService(util.ServiceHandler):
 
         return self.status(game_id)
 
-    def list(self, states = ['waiting', 'playing', 'aborted', 'draw', 'win']):
+    def list(self):
+        pkey = monkey.Player.get_current().key()
+
         games = []
-        for game in monkey.Game.gql('WHERE state IN :1 '
-                                    'ORDER BY last_update DESC '
-                                    'LIMIT 10', states):
-            player = monkey.Player.get_current()
+        for game in monkey.Game.gql('ORDER BY last_update DESC '
+                                    'LIMIT 100'):
             rules = game.rule_set
 
+            if pkey in game.players:
+                playing_as = game.players.index(pkey) + 1
+            elif game.state == 'waiting':
+                playing_as = 0
+            else:
+                continue
+            
             games.append({
                 'id': game.key().id(),
-                'players': [monkey.Player.get(p).user.nickname()
+                'players': [monkey.Player.get(p).nickname
                             for p in game.players],
-                 'rule_set': { 'id': rules.key().id(),
-                               'name': rules.name,
-                               'num_players': rules.num_players },
-                'playable': game.state == 'playing' and
-                            player.key() in game.players,
+                'rule_set': { 'id': rules.key().id(),
+                              'name': rules.name,
+                              'num_players': rules.num_players },
+                'playing_as': playing_as,
+                'current_player': rules.whose_turn(
+                    game.turn if game.state == 'playing' else game.turn - 1),
                 'state': game.state,
                 'last_update': str(game.last_update) })
 
@@ -127,7 +135,7 @@ class GameService(util.ServiceHandler):
             playing_as = 0
         
         return {
-            'players': [monkey.Player.get(p).user.nickname()
+            'players': [monkey.Player.get(p).nickname
                         for p in game.players],
             'board': game.unpack_board(),
             'playing_as': playing_as,

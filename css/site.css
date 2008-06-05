@@ -143,6 +143,14 @@ div.monkey div.lobby th {
     font-family: Georgia, serif;
 }
 
+div.monkey div.lobby tr.aborted td, div.monkey div.lobby tr.draw td, div.monkey div.lobby tr.win td {
+    color: #aaa;
+}
+
+div.monkey div.lobby tr.playing td {
+    background: #ffc;
+}
+
 div.monkey select {
     font-size: large;
     margin-right: .5em;
