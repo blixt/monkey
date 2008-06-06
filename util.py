@@ -13,7 +13,7 @@ from google.appengine.ext import webapp
 
 from google.appengine.ext.webapp import template
 
-import demjson
+import simplejson
 
 def contains(sequence, value):
     """A recursive version of the 'in' operator.
@@ -77,7 +77,7 @@ class ServiceHandler(webapp.RequestHandler):
                 args = {}
                 for arg in self.request.params:
                     if arg.startswith('_'): continue
-                    args[str(arg)] = demjson.decode(self.request.params[arg])
+                    args[str(arg)] = simplejson.loads(self.request.params[arg])
 
                 attr = getattr(self, action)
                 out['status'] = 'success'
@@ -103,6 +103,6 @@ class ServiceHandler(webapp.RequestHandler):
                     out['response'][a] = args
             
         self.response.headers['Content-Type'] = 'application/json'
-        self.response.out.write(demjson.encode(out))
+        self.response.out.write(simplejson.dumps(out, separators=(',', ':')))
 
     post = get

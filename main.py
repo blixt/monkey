@@ -22,7 +22,7 @@ Registers the WSGI web application with request handlers, also defined
 in this file.
 """
 
-from google.appengine.ext import webapp
+from google.appengine.ext import db, webapp
 
 import wsgiref.handlers
 import monkey, re, util
@@ -56,33 +56,36 @@ class GameService(util.ServiceHandler):
 
         return self.status(game_id)
 
+    def leave(self, game_id):
+        """Leaves an existing game.
+        """
+        game = monkey.Game.get_by_id(game_id)
+        if not game: raise ValueError('Invalid game id.')
+
+        player = monkey.Player.get_current()
+        player.leave(game)
+
     def list(self):
         pkey = monkey.Player.get_current().key()
 
         games = []
         for game in monkey.Game.gql('ORDER BY last_update DESC '
                                     'LIMIT 100'):
-            rules = game.rule_set
-
             if pkey in game.players:
                 playing_as = game.players.index(pkey) + 1
             elif game.state == 'waiting':
                 playing_as = 0
             else:
                 continue
-            
+
             games.append({
                 'id': game.key().id(),
-                'players': [monkey.Player.get(p).nickname
-                            for p in game.players],
-                'rule_set': { 'id': rules.key().id(),
-                              'name': rules.name,
-                              'num_players': rules.num_players },
+                'players': game.player_names,
+                'current_player': game.current_player,
+                'max_players': game.max_players,
                 'playing_as': playing_as,
-                'current_player': rules.whose_turn(
-                    game.turn if game.state == 'playing' else game.turn - 1),
-                'state': game.state,
-                'last_update': str(game.last_update) })
+                'rule_set_id': game.rule_set.key().id(),
+                'state': game.state })
 
         return games
         
@@ -110,7 +113,7 @@ class GameService(util.ServiceHandler):
 
     def rule_sets(self):
         rule_sets = []
-        for rule_set in monkey.RuleSet.all():
+        for rule_set in monkey.RuleSet.all().order('name'):
             rule_sets.append({ 'id': rule_set.key().id(),
                                'name': rule_set.name,
                                'num_games': rule_set.games.count(),
@@ -135,12 +138,10 @@ class GameService(util.ServiceHandler):
             playing_as = 0
         
         return {
-            'players': [monkey.Player.get(p).nickname
-                        for p in game.players],
+            'players': game.player_names,
             'board': game.unpack_board(),
             'playing_as': playing_as,
-            'current_player': game.rule_set.whose_turn(
-                game.turn if game.state == 'playing' else game.turn - 1),
+            'current_player': game.current_player,
             'state': game.state,
             'turn': game.turn }
 

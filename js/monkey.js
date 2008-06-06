@@ -40,21 +40,25 @@ var ServiceClient = new Class({
             secure: false,
             url: sc._path + action,
             onComplete: function (result) {
-                switch (result.status) {
-                    case 'error':
-                        if (onError)
-                            onError(result.response);
-                        else
-                            alert(result.response.type + ': ' + result.response.message);
-                        break;
-                    case 'list':
-                        break;
-                    case 'success':
-                        if (onSuccess) onSuccess(result.response);
-                        break;
-                    default:
-                        alert('Unknown status: ' + result.status);
-                        break;
+                if (result === undefined) {
+                    alert('An error occurred during the request. Try again.');
+                } else {
+                    switch (result.status) {
+                        case 'error':
+                            if (onError)
+                                onError(result.response);
+                            else
+                                alert(result.response.type + ': ' + result.response.message);
+                            break;
+                        case 'list':
+                            break;
+                        case 'success':
+                            if (onSuccess) onSuccess(result.response);
+                            break;
+                        default:
+                            alert('Unknown status: ' + result.status);
+                            break;
+                    }
                 }
 
                 sc._running = false;
@@ -88,6 +92,10 @@ var MonkeyService = new Class({
     joinGame: function(gameId, onSuccess, onError) {
         this.call('join', { 'game_id': gameId }, onSuccess, onError);
     },
+    
+    leaveGame: function (gameId, onSuccess, onError) {
+        this.call('leave', { 'game_id': gameId }, onSuccess, onError);
+    },
 
     listGames: function (onSuccess, onError) {
         this.call('list', {}, onSuccess, onError);
@@ -114,15 +122,16 @@ var MonkeyClient = new Class({
                 'class': 'game'
             }).adopt(
                 mc.html.gameStatus = new Element('p'),
+                mc.html.players = new Element('ol', { 'class': 'players' }),
                 new Element('p').adopt(
+                    mc.html.joinOrLeave = new Element('button', {
+                        text: '...'
+                    }),
                     new Element('button', {
-                        events: {
-                            click: mc.setMode.bind(mc, MonkeyClient.Mode.lobby)
-                        },
+                        events: { click: mc.setMode.bind(mc, MonkeyClient.Mode.lobby) },
                         text: 'To the lobby'
                     })
                 ),
-                mc.html.players = new Element('ol', { 'class': 'players' }),
                 new Element('table').adopt(
                     mc.html.gameBoard = new Element('tbody')
                 )
@@ -165,7 +174,9 @@ var MonkeyClient = new Class({
         });
 
         mc.service.getRuleSets(function (list) {
+            mc.ruleSets = {};
             for (var i = 0; i < list.length; i++) {
+                mc.ruleSets[list[i].id] = list[i].name;
                 new Element('option', { text: list[i].name, value: list[i].id }).inject(ruleSets);
             }
             ruleSets.value = list[0].id;
@@ -181,6 +192,26 @@ var MonkeyClient = new Class({
     goToGame: function (gameId) {
         this.gameId = gameId;
         this.setMode(MonkeyClient.Mode.game);
+    },
+    
+    handleList_playerTd: function (index, game) {
+        if (game.players[index]) {
+            var turn = game.state == 'playing' && game.current_player == index + 1;
+            return new Element('td', {
+                'class': 'slot',
+                text: game.players[index] + (turn ? ' ←' : '')
+            });
+        } else {
+            return new Element('td', {
+                'class': 'open slot'
+            }).adopt(
+                new Element('a', {
+                    events: { click: this.joinGame.bind(this, game.id) },
+                    href: '#',
+                    text: 'Join game'
+                })
+            );
+        }
     },
     
     handleList: function (games) {
@@ -203,7 +234,7 @@ var MonkeyClient = new Class({
                 }).adopt(
                     new Element('td', {
                         'class': 'action',
-                        rowspan: g.rule_set.num_players
+                        rowspan: g.max_players
                     }).adopt(
                         new Element('button', {
                             events: {
@@ -214,38 +245,16 @@ var MonkeyClient = new Class({
                     ),
                     new Element('td', {
                         'class': 'rule-set',
-                        rowspan: g.rule_set.num_players,
-                        text: g.rule_set.name
+                        rowspan: g.max_players,
+                        text: this.ruleSets[g.rule_set_id]
                     }),
-                    new Element('td', {
-                        'class': 'slot',
-                        text: g.players[0] + (turn ? ' ←' : '')
-                    })
+                    this.handleList_playerTd(0, g)
                 ));
                 
-                for (var j = 1; j < g.rule_set.num_players; j++) {
-                    var turn = (g.state == 'playing' && g.current_player == j + 1);
-                    var open = !g.players[j];
+                for (var j = 1; j < g.max_players; j++) {
                     this.html.gameList.adopt(new Element('tr', {
                         'class': g.state
-                    }).adopt(
-                        open?
-                        new Element('td', {
-                            'class': 'open slot'
-                        }).adopt(
-                            new Element('a', {
-                                events: {
-                                    click: this.joinGame.bind(this, g.id)
-                                },
-                                href: '#',
-                                text: 'Join game'
-                            })
-                        ):
-                        new Element('td', {
-                            'class': 'slot',
-                            text: g.players[j] + (turn ? ' ←' : '')
-                        })
-                    ));
+                    }).adopt(this.handleList_playerTd(j, g)));
                 }
             }
         }
@@ -283,9 +292,26 @@ var MonkeyClient = new Class({
                         status += game.players[cp - 1] + ' won.';
                     break;
             }
-            
-            this.html.game.set('class', 'game player-' + game.playing_as);
+
+            this.html.game.set('class', 'game player-' + pa);
             this.html.gameStatus.set('text', status);
+
+            var jol = this.html.joinOrLeave;
+            jol.set('text', pa ? 'Leave' : 'Join');
+            if (game.state == 'waiting') {
+                jol.disabled = false;
+                jol.onclick = pa ? this.leaveGame.bind(this) : this.joinGame.bind(this, this.gameId);
+            } else {
+                jol.disabled = true;
+            }
+
+            this.html.players.empty();
+            for (var i = 0; i < game.players.length; i++) {
+                var li = new Element('li', { text: game.players[i] }).inject(this.html.players);
+                if (game.state == 'playing' && i + 1 == cp) {
+                    li.set('class', 'current');
+                }
+            }
 
             var width = game.board.length, height = game.board[0].length;
             if (this.turn === null) {
@@ -337,6 +363,10 @@ var MonkeyClient = new Class({
         });
     },
     
+    leaveGame: function () {
+        this.service.leaveGame(this.gameId, this.setMode.bind(this, MonkeyClient.Mode.lobby));
+    },
+    
     move: function (x, y) {
         if (this.mode == MonkeyClient.Mode.game) {
             this.service.move(this.gameId, x, y, this.handleStatus.bind(this));
@@ -368,7 +398,7 @@ var MonkeyClient = new Class({
             case MonkeyClient.Mode.game:
                 this.html.game.dispose();
                 this.html.gameBoard.empty();
-                this.html.gameStatus.set('text', 'Please wait...');
+                this.html.gameStatus.set('text', '');
 
                 this.gameId = null;
                 this.turn = null;

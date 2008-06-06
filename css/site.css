@@ -48,7 +48,7 @@ h2, h3, h4, h5, h6 {
 }
 
 p {
-    margin-bottom: .5em;
+    margin-bottom: .4em;
 }
 
 table {
@@ -62,6 +62,28 @@ th {
 /* MoNKey! client-specific styles */
 div.monkey button {
     font-size: large;
+    margin-right: .3em;
+}
+
+div.monkey div.game ol {
+    font-size: small;
+    line-height: 1em;
+    list-style: none;
+    margin-bottom: 1em;
+    overflow: auto;
+}
+
+div.monkey div.game ol li {
+    background: #efe;
+    color: #080;
+    float: left;
+    margin-right: .5em;
+    padding: .3em;
+}
+
+div.monkey div.game ol li.current {
+    background: #ffe;
+    color: #760;
 }
 
 div.monkey div.game table {
@@ -83,22 +105,6 @@ div.monkey div.game td.empty {
     cursor: pointer;
 }
 
-div.monkey div.game.player-1 td.hover {
-    background-position: 0 0;
-}
-
-div.monkey div.game.player-2 td.hover {
-    background-position: 0 -19px;
-}
-
-div.monkey div.game.player-3 td.hover {
-    background-position: 0 -38px;
-}
-
-div.monkey div.game.player-4 td.hover {
-    background-position: 0 -57px;
-}
-
 div.monkey div.game td.player-1 {
     background-position: -38px 0;
 }
@@ -113,6 +119,22 @@ div.monkey div.game td.player-3 {
 
 div.monkey div.game td.player-4 {
     background-position: -38px -57px;
+}
+
+div.monkey div.game.player-1 td.hover {
+    background-position: 0 0;
+}
+
+div.monkey div.game.player-2 td.hover {
+    background-position: 0 -19px;
+}
+
+div.monkey div.game.player-3 td.hover {
+    background-position: 0 -38px;
+}
+
+div.monkey div.game.player-4 td.hover {
+    background-position: 0 -57px;
 }
 
 div.monkey div.lobby .action {

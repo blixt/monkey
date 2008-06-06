@@ -70,6 +70,9 @@ class Player(db.Model):
     def join(self, game):
         game.add_player(self)
 
+    def leave(self, game):
+        game.remove_player(self)
+
 class RuleSet(db.Model):
     """A rule set for an m,n,k,p,q-game.
     """
@@ -135,14 +138,23 @@ class Game(db.Model):
     state = db.StringProperty(default = 'waiting',
                               choices = ('waiting', 'playing', 'aborted',
                                          'draw', 'win'))
-    added = db.DateTimeProperty(auto_now_add = True)
-    last_update = db.DateTimeProperty(auto_now = True)
     players = db.ListProperty(item_type = db.Key)
+    player_names = db.StringListProperty()
+    current_player = db.IntegerProperty()
+    max_players = db.IntegerProperty()
     turn = db.IntegerProperty(default = -1)
     data = db.StringListProperty()
     rule_set = db.ReferenceProperty(reference_class = RuleSet,
                                     required = True,
                                     collection_name = 'games')
+    added = db.DateTimeProperty(auto_now_add = True)
+    last_update = db.DateTimeProperty(auto_now = True)
+
+    def __init__(self, parent = None, key_name = None, _app = None, **kw):
+        db.Model.__init__(self, parent = parent, key_name = key_name,
+                          _app = _app, **kw)
+        if not self.max_players:
+            self.max_players = self.rule_set.num_players
 
     def add_player(self, player):
         if player.key() in self.players:
@@ -158,7 +170,9 @@ class Game(db.Model):
             random.shuffle(self.players)
             self.state = 'playing'
             self.turn = 0
-        
+            self.current_player = 1
+
+        self.update_player_names()
         self.put()
 
     def move(self, player, x, y):
@@ -198,6 +212,7 @@ class Game(db.Model):
             self.state = 'draw'
 
         # Next turn.
+        self.current_player = whose_turn
         self.turn += 1
 
         self.put()
@@ -217,8 +232,25 @@ class Game(db.Model):
 
         db.Model.put(self)
 
+    def remove_player(self, player):
+        if player.key() not in self.players:
+            raise LeaveError('Player is not in game.')
+        if self.state != 'waiting':
+            raise JoinError('Cannot leave game.')
+
+        if len(self.players) > 1:
+            self.players.remove(player.key())
+            self.update_player_names()
+            self.put()
+        else:
+            self.delete()
+
     def unpack_board(self):
         if not hasattr(self, '_board'):
             self._board = [[int(val) for val in list(row)]
                            for row in self.data]
         return self._board
+
+    def update_player_names(self):
+        self.player_names = [db.get(p).nickname
+                             for p in self.players]
