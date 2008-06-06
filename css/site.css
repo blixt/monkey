@@ -86,10 +86,31 @@ div.monkey div.game ol li.current {
     color: #760;
 }
 
+div.monkey div.game ol li.open {
+    background: #eee;
+    color: #666;
+}
+
 div.monkey div.game table {
     border: #000 solid 2px;
     border-collapse: collapse;
     width: auto;
+}
+
+div.monkey div.game tbody td.player-1.l {
+    background-position: -19px 0;
+}
+
+div.monkey div.game tbody td.player-2.l {
+    background-position: -19px -19px;
+}
+
+div.monkey div.game tbody td.player-3.l {
+    background-position: -19px -38px;
+}
+
+div.monkey div.game tbody td.player-4.l {
+    background-position: -19px -57px;
 }
 
 div.monkey div.game td {

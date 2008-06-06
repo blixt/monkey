@@ -27,7 +27,7 @@ diagonally. Thus, tic-tac-toe is the 3,3,3-game and free-style gomoku is the
 
 See: http://en.wikipedia.org/wiki/m,n,k-game
 
-In addition, this engine supports m,n,k,p,q-games, where q is the number of
+This engine also supports Connect(m,n,k,p,q)-games, where q is the number of
 stones placed in the very first turn and p the number of stones placed in any
 subsequent turns.
 """
@@ -45,6 +45,10 @@ class JoinError(Error):
     """Thrown when a player cannot join a game."""
     pass
 
+class LeaveError(Error):
+    """Thrown when a player cannot leave a game."""
+    pass
+
 class MoveError(Error):
     """Thrown when a move cannot be made."""
     pass
@@ -58,6 +62,8 @@ class Player(db.Model):
 
     @staticmethod
     def get_current():
+        """Retrieves a Player instance for the currently logged in user.
+        """
         curuser = users.get_current_user()
         player = Player.gql('WHERE user = :1', curuser).get()
         if not player:
@@ -68,9 +74,13 @@ class Player(db.Model):
         return player
 
     def join(self, game):
+        """Convenience method for adding a player to a game.
+        """
         game.add_player(self)
 
     def leave(self, game):
+        """Convenience method from removing a player from a game.
+        """
         game.remove_player(self)
 
 class RuleSet(db.Model):
@@ -81,6 +91,7 @@ class RuleSet(db.Model):
     num_players = db.IntegerProperty(choices = (2, 3, 4, 5, 6, 7, 8, 9),
                                      default = 2,
                                      verbose_name = 'Number of players')
+    num_games = db.IntegerProperty(default = 0)
     exact = db.BooleanProperty(default = False,
                                verbose_name = 'Number of consequtive stones '
                                               'must be exact for a win')
@@ -141,7 +152,6 @@ class Game(db.Model):
     players = db.ListProperty(item_type = db.Key)
     player_names = db.StringListProperty()
     current_player = db.IntegerProperty()
-    max_players = db.IntegerProperty()
     turn = db.IntegerProperty(default = -1)
     data = db.StringListProperty()
     rule_set = db.ReferenceProperty(reference_class = RuleSet,
@@ -150,13 +160,10 @@ class Game(db.Model):
     added = db.DateTimeProperty(auto_now_add = True)
     last_update = db.DateTimeProperty(auto_now = True)
 
-    def __init__(self, parent = None, key_name = None, _app = None, **kw):
-        db.Model.__init__(self, parent = parent, key_name = key_name,
-                          _app = _app, **kw)
-        if not self.max_players:
-            self.max_players = self.rule_set.num_players
-
     def add_player(self, player):
+        """Adds a player to the game and starts the game if it has enough
+        players.
+        """
         if player.key() in self.players:
             raise JoinError('Player is already in game.')
         if len(self.players) >= self.rule_set.num_players:
@@ -166,6 +173,7 @@ class Game(db.Model):
         
         self.players.append(player.key())
 
+        # Start the game when it has enough players.
         if len(self.players) == self.rule_set.num_players:
             random.shuffle(self.players)
             self.state = 'playing'
@@ -176,15 +184,18 @@ class Game(db.Model):
         self.put()
 
     def move(self, player, x, y):
+        """Puts a tile at the specified coordinates and makes sure all game
+        rules are followed.
+        """
         if self.state != 'playing': raise MoveError('Game not in play.')
 
         rs = self.rule_set
         np = rs.num_players
         m, n, k, p, q = rs.m, rs.n, rs.k, rs.p, rs.q
 
-        whose_turn = rs.whose_turn(self.turn)
-        player_turn = self.players.index(player.key()) + 1
+        whose_turn = self.current_player
 
+        player_turn = self.players.index(player.key()) + 1
         if whose_turn != player_turn: raise MoveError('Not player\'s turn.')
 
         board = self.unpack_board()
@@ -193,50 +204,70 @@ class Game(db.Model):
             board[x][y]): raise MoveError('Invalid tile position.')
 
         board[x][y] = whose_turn
+
+        # Next turn.
+        self.turn += 1
+
         # There's a win according to the rule set.
         if rs.is_win(board, player_turn, x, y):
+            self.state = 'win'
+
             player.wins += 1
             player.put()
             for pkey in self.players:
                 if pkey == player.key(): continue
-                p = Player.get(pkey)
+                p = db.get(pkey)
                 p.losses += 1
                 p.put()
-            self.state = 'win'
+
+            self.rule_set.num_games += 1
+            self.rule_set.put()
         # Board has been filled; draw.
         elif not util.contains(board, 0):
-            for pkey in self.players:
-                p = Player.get(pkey)
-                p.draws += 1
-                p.put()
             self.state = 'draw'
 
-        # Next turn.
-        self.current_player = whose_turn
-        self.turn += 1
+            for pkey in self.players:
+                p = db.get(pkey)
+                p.draws += 1
+                p.put()
+
+            self.rule_set.num_games += 1
+            self.rule_set.put()
+        else:
+            self.current_player = rs.whose_turn(self.turn)
 
         self.put()
 
     def pack_board(self):
+        """Packs a list of lists into a list of strings, where each character
+        represents a value in a sub-list.
+        """
         if not hasattr(self, '_board'): return
         self.data = [string.join([str(self._board[x][y])
                                   for y in range(self.rule_set.n)], '')
                      for x in range(self.rule_set.m)]
 
     def put(self):
-        self.pack_board()
-
-        if not self.data:
+        """Does some additional processing before the entity is stored to the
+        data store.
+        """
+        if self.is_saved():
+            self.pack_board()
+        else:
+            # Set up a data structure that can store an m by n table.
             self.data = ['0' * self.rule_set.m
                          for i in range(self.rule_set.n)]
 
         db.Model.put(self)
 
     def remove_player(self, player):
+        """Removes a player from the game or deletes the game if removing the
+        player would make the game empty from players.
+        """
         if player.key() not in self.players:
             raise LeaveError('Player is not in game.')
         if self.state != 'waiting':
-            raise JoinError('Cannot leave game.')
+            raise LeaveError('Cannot leave game.')
 
         if len(self.players) > 1:
             self.players.remove(player.key())
@@ -246,11 +277,17 @@ class Game(db.Model):
             self.delete()
 
     def unpack_board(self):
+        """Unpacks a list of strings into a list of lists where each character
+        in the list of strings represents a value in a sub-list.
+        """
         if not hasattr(self, '_board'):
             self._board = [[int(val) for val in list(row)]
                            for row in self.data]
         return self._board
 
     def update_player_names(self):
+        """Synchronizes the 'player_names' list with the names of the players in
+        the game.
+        """
         self.player_names = [db.get(p).nickname
                              for p in self.players]

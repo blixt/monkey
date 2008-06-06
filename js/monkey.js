@@ -110,9 +110,9 @@ var MonkeyClient = new Class({
     initialize: function () {
         var mc = this;
 
+        mc.game = null;
         mc.gameId = null;
         mc.service = new MonkeyService();
-        mc.turn = null;
 
         var ruleSets;
 
@@ -125,7 +125,7 @@ var MonkeyClient = new Class({
                 mc.html.players = new Element('ol', { 'class': 'players' }),
                 new Element('p').adopt(
                     mc.html.joinOrLeave = new Element('button', {
-                        text: '...'
+                        text: 'Join'
                     }),
                     new Element('button', {
                         events: { click: mc.setMode.bind(mc, MonkeyClient.Mode.lobby) },
@@ -176,7 +176,7 @@ var MonkeyClient = new Class({
         mc.service.getRuleSets(function (list) {
             mc.ruleSets = {};
             for (var i = 0; i < list.length; i++) {
-                mc.ruleSets[list[i].id] = list[i].name;
+                mc.ruleSets[list[i].id] = list[i];
                 new Element('option', { text: list[i].name, value: list[i].id }).inject(ruleSets);
             }
             ruleSets.value = list[0].id;
@@ -227,14 +227,15 @@ var MonkeyClient = new Class({
             ));
         } else {
             for (var i = 0; i < games.length; i++) {
-                var g = games[i], row;
-                var turn = (g.state == 'playing' && g.current_player == 1);
+                var g = games[i], rs = this.ruleSets[g.rule_set_id];
+                var row, turn = (g.state == 'playing' && g.current_player == 1);
+
                 this.html.gameList.adopt(new Element('tr', {
                     'class': g.state
                 }).adopt(
                     new Element('td', {
                         'class': 'action',
-                        rowspan: g.max_players
+                        rowspan: rs.num_players
                     }).adopt(
                         new Element('button', {
                             events: {
@@ -245,13 +246,13 @@ var MonkeyClient = new Class({
                     ),
                     new Element('td', {
                         'class': 'rule-set',
-                        rowspan: g.max_players,
-                        text: this.ruleSets[g.rule_set_id]
+                        rowspan: rs.num_players,
+                        text: rs.name
                     }),
                     this.handleList_playerTd(0, g)
                 ));
                 
-                for (var j = 1; j < g.max_players; j++) {
+                for (var j = 1; j < rs.num_players; j++) {
                     this.html.gameList.adopt(new Element('tr', {
                         'class': g.state
                     }).adopt(this.handleList_playerTd(j, g)));
@@ -267,6 +268,7 @@ var MonkeyClient = new Class({
         if (game !== false) {
             var pa = game.playing_as;
             var cp = game.current_player;
+            var rs = this.ruleSets[game.rule_set_id];
 
             var status;
             switch (game.state) {
@@ -306,15 +308,25 @@ var MonkeyClient = new Class({
             }
 
             this.html.players.empty();
-            for (var i = 0; i < game.players.length; i++) {
-                var li = new Element('li', { text: game.players[i] }).inject(this.html.players);
+            for (var i = 0; i < rs.num_players; i++) {
+                var li;
+                if (game.players[i])
+                    li = new Element('li', {
+                        text: game.players[i]
+                    }).inject(this.html.players);
+                else
+                    li = new Element('li', {
+                        'class': 'open',
+                        text: 'Open slot'
+                    }).inject(this.html.players);
+
                 if (game.state == 'playing' && i + 1 == cp) {
                     li.set('class', 'current');
                 }
             }
 
             var width = game.board.length, height = game.board[0].length;
-            if (this.turn === null) {
+            if (!this.game) {
                 this.html.cells = [];
                 this.html.gameBoard.empty();
 
@@ -343,14 +355,14 @@ var MonkeyClient = new Class({
                 }
             }
 
-            this.gameState = game.state;
-            this.turn = game.turn;
+            this.game = game;
+            if (game.state == 'win') this.markWinTiles();
         }
         
         $clear(this.timer);
-        if (this.gameState == 'waiting') {
+        if (this.game.state == 'waiting') {
             this.timer = this.refresh.delay(6000, this);
-        } else if (this.gameState == 'playing') {
+        } else if (this.game.state == 'playing') {
             this.timer = this.refresh.delay(2000, this);
         }
     },
@@ -367,6 +379,45 @@ var MonkeyClient = new Class({
         this.service.leaveGame(this.gameId, this.setMode.bind(this, MonkeyClient.Mode.lobby));
     },
     
+    markWinTiles: function () {
+        // TODO: Needs optimization
+        var self = this.ruleSets[this.game.rule_set_id];
+        var board = this.game.board;
+        var player = this.game.current_player;
+
+        for (var y = 0; y < self.n; y++) {
+            for (var x = 0; x < self.m; x++) {
+                var c = this.html.cells[x][y];
+                
+                if (c.hasClass('w')) continue;
+                c.addClass('l');
+
+                var ca = 0, cb = 0, cc = 0, cd = 0;
+                for (var i = -self.k + 1; i < self.k; i++) {
+                    var tx = x + i, txi = x - i, ty = y + i;
+                    // Test horizontal -
+                    if (tx >= 0 && tx < self.m)
+                        ca += board[tx][y] == player ? 1 : -ca;
+                    // Test vertical |
+                    if (ty >= 0 && ty < self.n)
+                        cb += board[x][ty] == player ? 1 : -cb;
+                    // Test diagonal \
+                    if (tx >= 0 && ty >= 0 && tx < self.m && ty < self.n)
+                        cc += board[tx][ty] == player? 1 : -cc;
+                    // Test diagonal /
+                    if (txi >= 0 && ty >= 0 && txi < self.m && ty < self.n)
+                        cd += board[txi][ty] == player ? 1 : -cd;
+
+                    if (!self.exact && (ca == self.k || cb == self.k || cc == self.k || cd == self.k)) {
+                        c.removeClass('l');
+                        c.addClass('w');
+                        break;
+                    }
+                }
+            }
+        }
+    },
+    
     move: function (x, y) {
         if (this.mode == MonkeyClient.Mode.game) {
             this.service.move(this.gameId, x, y, this.handleStatus.bind(this));
@@ -381,7 +432,8 @@ var MonkeyClient = new Class({
                 this.service.listGames(this.handleList.bind(this));
                 break;
             case MonkeyClient.Mode.game:
-                this.service.gameStatus(this.gameId, this.turn, this.handleStatus.bind(this));
+                var t = this.game && this.game.state == 'playing' ? this.game.turn : null;
+                this.service.gameStatus(this.gameId, t, this.handleStatus.bind(this));
                 break;
         }
     },
@@ -400,8 +452,8 @@ var MonkeyClient = new Class({
                 this.html.gameBoard.empty();
                 this.html.gameStatus.set('text', '');
 
+                this.game = null;
                 this.gameId = null;
-                this.turn = null;
 
                 break;
         }

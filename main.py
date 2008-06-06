@@ -66,23 +66,32 @@ class GameService(util.ServiceHandler):
         player.leave(game)
 
     def list(self):
+        """Returns a list of games relevant to the current player.
+        """
         pkey = monkey.Player.get_current().key()
+        
+        playing = monkey.Game.all()
+        playing.filter('state =', 'playing')
+        playing.filter('players =', pkey)
+        playing.order('-last_update')
+
+        waiting = monkey.Game.all()
+        waiting.filter('state =', 'waiting')
+        waiting.order('-last_update')
+
+        results = list(playing) + waiting.fetch(10)
 
         games = []
-        for game in monkey.Game.gql('ORDER BY last_update DESC '
-                                    'LIMIT 100'):
+        for game in results:
             if pkey in game.players:
                 playing_as = game.players.index(pkey) + 1
-            elif game.state == 'waiting':
-                playing_as = 0
             else:
-                continue
+                playing_as = 0
 
             games.append({
                 'id': game.key().id(),
                 'players': game.player_names,
                 'current_player': game.current_player,
-                'max_players': game.max_players,
                 'playing_as': playing_as,
                 'rule_set_id': game.rule_set.key().id(),
                 'state': game.state })
@@ -90,6 +99,8 @@ class GameService(util.ServiceHandler):
         return games
         
     def move(self, game_id, x, y):
+        """Places a tile on the board of the specified game.
+        """
         game = monkey.Game.get_by_id(game_id)
         if not game: raise ValueError('Invalid game id.')
 
@@ -99,6 +110,8 @@ class GameService(util.ServiceHandler):
         return self.status(game_id)
 
     def new_rule_set(self, name, m, n, k, p = 1, q = 1, num_players = 2):
+        """Creates a new rule set.
+        """
         if not re.match('^[\\w]([\\w&\'\\- ]{0,28}[\\w\'!])$', name):
             raise ValueError('Invalid name.')
 
@@ -112,12 +125,15 @@ class GameService(util.ServiceHandler):
         return rule_set.key().id()
 
     def rule_sets(self):
+        """Gets all rule sets.
+        """
         rule_sets = []
         for rule_set in monkey.RuleSet.all().order('name'):
             rule_sets.append({ 'id': rule_set.key().id(),
                                'name': rule_set.name,
-                               'num_games': rule_set.games.count(),
+                               'num_games': rule_set.num_games,
                                'num_players': rule_set.num_players,
+                               'exact': rule_set.exact,
                                'm': rule_set.m, 'n': rule_set.n,
                                'k': rule_set.k, 'p': rule_set.p,
                                'q': rule_set.q })
@@ -143,7 +159,8 @@ class GameService(util.ServiceHandler):
             'playing_as': playing_as,
             'current_player': game.current_player,
             'state': game.state,
-            'turn': game.turn }
+            'turn': game.turn,
+            'rule_set_id': game.rule_set.key().id() }
 
 class HomePage(util.ExtendedHandler):
     def get(self):
