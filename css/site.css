@@ -194,13 +194,45 @@ div.monkey div.lobby th {
     font-family: Georgia, serif;
 }
 
-div.monkey div.lobby tr.aborted td, div.monkey div.lobby tr.draw td, div.monkey div.lobby tr.win td {
+div.monkey div.lobby tr.aborted td {
     color: #aaa;
+}
+
+div.monkey div.lobby tr.loss td {
+    background: #fee;
+    border-color: #fdd;
+    color: #c00;
+}
+
+div.monkey div.lobby tr.win td {
+    background: #efe;
+    border-color: #dfd;
+    color: #080;
 }
 
 div.monkey div.lobby tr.playing td {
     background: #ffc;
     border-color: #fea;
+}
+
+div.monkey div.lobby ul {
+    list-style: none;
+    margin: 1em 0 .5em;
+    overflow: auto;
+}
+
+div.monkey div.lobby ul a {
+    background: #eee;
+    border: #ccc solid 1px;
+    color: #333;
+    display: block;
+    padding: .2em .5em;
+    text-decoration: none;
+}
+
+div.monkey div.lobby ul li {
+    float: left;
+    margin-right: .5em;
 }
 
 div.monkey select {
@@ -209,5 +241,5 @@ div.monkey select {
 }
 
 div.monkey table {
-    margin: 1em auto;
+    margin: 0 auto 1em;
 }

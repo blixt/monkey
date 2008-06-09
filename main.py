@@ -76,21 +76,41 @@ class GameService(util.ServiceHandler):
         player = monkey.Player.get_current()
         player.leave(game)
 
-    def list(self):
+    def list(self, mode = 'play'):
         """Returns a list of games relevant to the current player.
+
+        Modes:
+            play - Returns games that the player is playing or can join.
+            view - Returns games that other players are playing.
+            past - Returns recent games that the player has played.
         """
         pkey = monkey.Player.get_current().key()
-        
-        playing = monkey.Game.all()
-        playing.filter('state =', 'playing')
-        playing.filter('players =', pkey)
-        playing.order('-last_update')
 
-        waiting = monkey.Game.all()
-        waiting.filter('state =', 'waiting')
-        waiting.order('-last_update')
+        if mode == 'play':
+            playing = monkey.Game.all()
+            playing.filter('state =', 'playing')
+            playing.filter('players =', pkey)
+            playing.order('-last_update')
 
-        results = list(playing) + waiting.fetch(10)
+            waiting = monkey.Game.all()
+            waiting.filter('state =', 'waiting')
+            waiting.order('-last_update')
+
+            results = list(playing) + waiting.fetch(10)
+        elif mode == 'view':
+            playing = monkey.Game.all()
+            playing.filter('state =', 'playing')
+            playing.order('-last_update')
+
+            results = filter(lambda g: pkey not in g.players, playing.fetch(15))
+        elif mode == 'past':
+            history = monkey.Game.gql('WHERE state IN :1 AND '
+                                      'players = :2 ORDER BY last_update DESC',
+                                      ['aborted', 'win', 'draw'], pkey)
+
+            results = history.fetch(10)
+        else:
+            raise ValueError('Invalid mode.')
 
         games = []
         for game in results:

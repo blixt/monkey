@@ -108,8 +108,9 @@ var MonkeyService = new Class({
         this.call('leave', { 'game_id': gameId }, onSuccess, onError);
     },
 
-    listGames: function (onSuccess, onError) {
-        this.call('list', {}, onSuccess, onError);
+    listGames: function (mode, onSuccess, onError) {
+        var params = mode ? { mode: mode } : {};
+        this.call('list', params, onSuccess, onError);
     },
     
     move: function (gameId, x, y, onSuccess, onError) {
@@ -123,6 +124,7 @@ var MonkeyClient = new Class({
 
         mc.game = null;
         mc.gameId = null;
+        mc.listMode = 'play';
         mc.service = new MonkeyService();
 
         var ruleSets;
@@ -164,6 +166,29 @@ var MonkeyClient = new Class({
                         },
                         text: 'Create game'
                     })
+                ),
+                new Element('ul').adopt(
+                    new Element('li').adopt(new Element('a', {
+                        events: {
+                            click: this.setListMode.bind(this, 'play')
+                        },
+                        href: '#play',
+                        text: 'Play'
+                    })),
+                    new Element('li').adopt(new Element('a', {
+                        events: {
+                            click: this.setListMode.bind(this, 'view')
+                        },
+                        href: '#view',
+                        text: 'View'
+                    })),
+                    new Element('li').adopt(new Element('a', {
+                        events: {
+                            click: this.setListMode.bind(this, 'past')
+                        },
+                        href: '#past',
+                        text: 'Past'
+                    }))
                 ),
                 new Element('table').adopt(
                     new Element('thead').adopt(
@@ -229,7 +254,7 @@ var MonkeyClient = new Class({
             }).adopt(
                 new Element('a', {
                     events: { click: this.joinGame.bind(this, game.id) },
-                    href: '#',
+                    href: '#' + game.id,
                     text: 'Join game'
                 })
             );
@@ -252,8 +277,13 @@ var MonkeyClient = new Class({
                 var g = games[i], rs = this.ruleSets[g.rule_set_id];
                 var row, turn = (g.state == 'playing' && g.current_player == 1);
 
+                var cls = g.state;
+                if (cls == 'win' && g.playing_as && g.playing_as != g.current_player) {
+                    cls = 'loss';
+                }
+
                 this.html.gameList.adopt(new Element('tr', {
-                    'class': g.state
+                    'class': cls
                 }).adopt(
                     new Element('td', {
                         'class': 'action',
@@ -281,7 +311,7 @@ var MonkeyClient = new Class({
                 
                 for (var j = 1; j < rs.num_players; j++) {
                     this.html.gameList.adopt(new Element('tr', {
-                        'class': g.state
+                        'class': cls
                     }).adopt(this.handleList_playerTd(j, g)));
                 }
             }
@@ -469,13 +499,18 @@ var MonkeyClient = new Class({
 
         switch (this.mode) {
             case MonkeyClient.Mode.lobby:
-                this.service.listGames(this.handleList.bind(this));
+                this.service.listGames(this.listMode, this.handleList.bind(this));
                 break;
             case MonkeyClient.Mode.game:
                 var t = this.game && this.game.state == 'playing' ? this.game.turn : null;
                 this.service.gameStatus(this.gameId, t, this.handleStatus.bind(this));
                 break;
         }
+    },
+    
+    setListMode: function (newMode) {
+        this.listMode = newMode;
+        this.refresh();
     },
     
     setMode: function (newMode) {

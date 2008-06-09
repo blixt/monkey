@@ -385,16 +385,18 @@ class Game(db.Model):
         """Puts a tile at the specified coordinates and makes sure all game
         rules are followed.
         """
+        pkey = player.key()
+        if pkey not in self.players: raise MoveError('Player not in game.')
+
         if self.state != 'playing': raise MoveError('Game not in play.')
+
+        whose_turn = self.current_player
+        player_turn = self.players.index(pkey) + 1
+        if whose_turn != player_turn: raise MoveError('Not player\'s turn.')
 
         rs = self.rule_set
         np = rs.num_players
         m, n, k, p, q = rs.m, rs.n, rs.k, rs.p, rs.q
-
-        whose_turn = self.current_player
-
-        player_turn = self.players.index(player.key()) + 1
-        if whose_turn != player_turn: raise MoveError('Not player\'s turn.')
 
         board = self.unpack_board()
         if (x < 0 or x >= m or
