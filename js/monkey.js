@@ -40,9 +40,7 @@ var ServiceClient = new Class({
             secure: false,
             url: sc._path + action,
             onComplete: function (result) {
-                if (result === undefined) {
-                    alert('An error occurred during the request. Try again.');
-                } else {
+                if (result) {
                     switch (result.status) {
                         case 'error':
                             if (onError)
@@ -59,6 +57,13 @@ var ServiceClient = new Class({
                             alert('Unknown status: ' + result.status);
                             break;
                     }
+                } else {
+                    if (this.attempts >= 3) {
+                        alert('A request failed after repeated retries. Please reload the page.');
+                    } else {
+                        this.attempts++;
+                        this.get.delay(500, this, params);
+                    }
                 }
 
                 sc._running = false;
@@ -66,7 +71,9 @@ var ServiceClient = new Class({
                     sc.call.apply(sc, sc._queue.shift());
                 }
             }
-        }).get(params);
+        });
+        req.attempts = 1;
+        req.get(params);
     }
 });
 
@@ -121,8 +128,6 @@ var MonkeyClient = new Class({
             game: new Element('div', {
                 'class': 'game'
             }).adopt(
-                mc.html.gameStatus = new Element('p'),
-                mc.html.players = new Element('ol', { 'class': 'players' }),
                 new Element('p').adopt(
                     mc.html.joinOrLeave = new Element('button', {
                         text: 'Join'
@@ -132,6 +137,8 @@ var MonkeyClient = new Class({
                         text: 'To the lobby'
                     })
                 ),
+                mc.html.gameStatus = new Element('p'),
+                mc.html.players = new Element('ol', { 'class': 'players' }),
                 new Element('table').adopt(
                     mc.html.gameBoard = new Element('tbody')
                 )
@@ -168,7 +175,13 @@ var MonkeyClient = new Class({
                             })
                         )
                     ),
-                    mc.html.gameList = new Element('tbody')
+                    mc.html.gameList = new Element('tbody').adopt(new Element('tr').adopt(
+                        new Element('td', {
+                            'class': 'no-games',
+                            colspan: 3,
+                            text: 'Loading...'
+                        })
+                    ))
                 )
             )
         });
@@ -189,9 +202,11 @@ var MonkeyClient = new Class({
         this.service.createGame(ruleSetId, this.goToGame.bind(this));
     },
     
-    goToGame: function (gameId) {
+    goToGame: function (gameId, game) {
         this.gameId = gameId;
         this.setMode(MonkeyClient.Mode.game);
+        
+        if (game) this.handleStatus(game);
     },
     
     handleList_playerTd: function (index, game) {
@@ -239,16 +254,21 @@ var MonkeyClient = new Class({
                     }).adopt(
                         new Element('button', {
                             events: {
-                                click: this.goToGame.bind(this, g.id)
+                                click: this.goToGame.bind(this, [g.id, g])
                             },
                             text: g.state == 'playing' && g.playing_as > 0 ? 'Play' : 'View'
                         })
                     ),
                     new Element('td', {
                         'class': 'rule-set',
-                        rowspan: rs.num_players,
-                        text: rs.name
-                    }),
+                        rowspan: rs.num_players
+                    }).adopt(
+                        new Element('span', { text: rs.name + ' — ' }),
+                        new Element('small', {
+                            text: rs.m + '×' + rs.n + ' board, ' + rs.k + ' in a row to win, place ' + rs.q +
+                                  (rs.p == rs.q ? ' each turn.' : ' first turn, then ' + rs.p + ' following turns.')
+                        })
+                    ),
                     this.handleList_playerTd(0, g)
                 ));
                 
@@ -281,7 +301,7 @@ var MonkeyClient = new Class({
                              ' turn.';
                     break;
                 case 'aborted':
-                    status = 'This game was aborted.';
+                    status = 'This game has been abandoned by a player and cannot continue.';
                     break;
                 case 'draw':
                     status = 'This game ended in a draw.';
@@ -299,8 +319,8 @@ var MonkeyClient = new Class({
             this.html.gameStatus.set('text', status);
 
             var jol = this.html.joinOrLeave;
-            jol.set('text', pa ? 'Leave' : 'Join');
-            if (game.state == 'waiting') {
+            jol.set('text', pa ? (game.state == 'waiting' ? 'Leave' : 'Abandon') : 'Join');
+            if (game.state == 'waiting' || (game.state == 'playing' && pa)) {
                 jol.disabled = false;
                 jol.onclick = pa ? this.leaveGame.bind(this) : this.joinGame.bind(this, this.gameId);
             } else {
@@ -325,38 +345,40 @@ var MonkeyClient = new Class({
                 }
             }
 
-            var width = game.board.length, height = game.board[0].length;
-            if (!this.game) {
-                this.html.cells = [];
-                this.html.gameBoard.empty();
+            if (game.board) {
+                var width = game.board.length, height = game.board[0].length;
+                if (!this.html.cells) {
+                    this.html.cells = [];
+                    this.html.gameBoard.empty();
 
-                for (var y = 0; y < height; y++) {
-                    var row = new Element('tr').inject(this.html.gameBoard);
-                    for (var x = 0; x < width; x++) {
-                        if (!this.html.cells[x]) this.html.cells[x] = [];
+                    for (var y = 0; y < height; y++) {
+                        var row = new Element('tr').inject(this.html.gameBoard);
+                        for (var x = 0; x < width; x++) {
+                            if (!this.html.cells[x]) this.html.cells[x] = [];
 
-                        var player = game.board[x][y];
-                        this.html.cells[x][y] = new Element('td', {
-                            events: {
-                                click: this.move.bind(this, [x, y]),
-                                mouseenter: function () { this.addClass('hover'); },
-                                mouseleave: function () { this.removeClass('hover'); }
-                            },
-                            'class': player ? 'player-' + player : 'empty'
-                        }).inject(row);
+                            var player = game.board[x][y];
+                            this.html.cells[x][y] = new Element('td', {
+                                events: {
+                                    click: this.move.bind(this, [x, y]),
+                                    mouseenter: function () { this.addClass('hover'); },
+                                    mouseleave: function () { this.removeClass('hover'); }
+                                },
+                                'class': player ? 'player-' + player : 'empty'
+                            }).inject(row);
+                        }
                     }
-                }
-            } else {
-                for (var y = 0; y < height; y++) {
-                    for (var x = 0; x < width; x++) {
-                        var player = game.board[x][y];
-                        this.html.cells[x][y].set('class', player ? 'player-' + player : 'empty');
+                } else {
+                    for (var y = 0; y < height; y++) {
+                        for (var x = 0; x < width; x++) {
+                            var player = game.board[x][y];
+                            this.html.cells[x][y].set('class', player ? 'player-' + player : 'empty');
+                        }
                     }
                 }
             }
 
             this.game = game;
-            if (game.state == 'win') this.markWinTiles();
+            if (game.state == 'win' && game.board) this.markWinTiles();
         }
         
         $clear(this.timer);
@@ -370,12 +392,13 @@ var MonkeyClient = new Class({
     joinGame: function (gameId) {
         var mc = this;
         mc.service.joinGame(gameId, function (game) {
-            mc.goToGame(gameId);
-            mc.handleStatus(game);
+            mc.goToGame(gameId, game);
         });
     },
     
     leaveGame: function () {
+        var q = 'Are you sure you want to abandon this game?';
+        if (this.game.state == 'playing' && !confirm(q)) return;
         this.service.leaveGame(this.gameId, this.setMode.bind(this, MonkeyClient.Mode.lobby));
     },
     
@@ -439,22 +462,12 @@ var MonkeyClient = new Class({
     },
     
     setMode: function (newMode) {
-        if (newMode == this.mode) return;
-        
         switch (this.mode) {
             case MonkeyClient.Mode.lobby:
                 this.html.lobby.dispose();
-                this.html.gameList.empty();
-
                 break;
             case MonkeyClient.Mode.game:
                 this.html.game.dispose();
-                this.html.gameBoard.empty();
-                this.html.gameStatus.set('text', '');
-
-                this.game = null;
-                this.gameId = null;
-
                 break;
         }
         
@@ -462,11 +475,23 @@ var MonkeyClient = new Class({
         
         switch (this.mode) {
             case MonkeyClient.Mode.lobby:
+                this.game = null;
+                this.gameId = null;
+
                 this.html.main.set('class', 'monkey in-lobby');
                 this.html.lobby.inject(this.html.main);
 
                 break;
             case MonkeyClient.Mode.game:
+                this.html.cells = null;
+
+                this.html.gameBoard.empty();
+                this.html.players.empty();
+
+                this.html.gameStatus.set('text', 'Loading game status...');
+                this.html.joinOrLeave.disabled = true;
+                this.html.joinOrLeave.set('text', 'Join');
+
                 this.html.main.set('class', 'monkey in-game');
                 this.html.game.inject(this.html.main);
 

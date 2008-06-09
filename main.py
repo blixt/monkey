@@ -31,6 +31,17 @@ class GameService(util.ServiceHandler):
     """Methods that can be called through HTTP (intended to be called by
     JavaScript through an XmlHttpRequest object.
     """
+    def add_cpu_player(self, game_id):
+        """Adds the CPU player to a game.
+        """
+        game = monkey.Game.get_by_id(game_id)
+        if not game: raise ValueError('Invalid game id.')
+
+        cpu = monkey.CpuPlayer()
+        cpu.player.join(game)
+
+        return self.status(game_id)
+        
     def create(self, rule_set_id):
         """Creates a new game.
         """

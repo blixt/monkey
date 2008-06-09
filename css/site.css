@@ -163,8 +163,12 @@ div.monkey div.lobby .action {
     width: 150px;
 }
 
+div.monkey div.lobby .rule-set {
+    width: 60%;
+}
+
 div.monkey div.lobby td {
-    border-color: #ddd;
+    border-color: #eee;
     border-style: solid;
     border-width: 1px 0;
     font-size: medium;
@@ -175,6 +179,10 @@ div.monkey div.lobby td.no-games {
     color: #666;
     font-style: italic;
     text-align: center;
+}
+
+div.monkey div.lobby td.rule-set small {
+    font-size: x-small;
 }
 
 div.monkey div.lobby td.slot, div.monkey div.lobby td.slot button {
@@ -192,6 +200,7 @@ div.monkey div.lobby tr.aborted td, div.monkey div.lobby tr.draw td, div.monkey 
 
 div.monkey div.lobby tr.playing td {
     background: #ffc;
+    border-color: #fea;
 }
 
 div.monkey select {
