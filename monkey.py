@@ -77,6 +77,8 @@ class CpuPlayer(object):
         else:
             cur_player = 0
 
+        wl = self.win_length
+
         if cur_player > 0 and cur_player == prev_player:
             row_len += 1
         else:
@@ -85,7 +87,7 @@ class CpuPlayer(object):
                 af, bf = 0, 0
                 au, bu = 0, 0
                 ac, bc = None, None
-                for o in xrange(0, self.win_length - row_len):
+                for o in xrange(0, wl - row_len):
                     # After row
                     if al:
                         ox, oy = x + dx * o, y + dy * o
@@ -113,23 +115,23 @@ class CpuPlayer(object):
 
                 if prev_player == self.index:
                     # Decision making for own row
-                    if ac and row_len + au + 1 >= self.win_length:
+                    if ac and row_len + au + 1 >= wl:
                         raise ForcedMove(ac)
 
-                    if bc and row_len + bu + 1 >= self.win_length:
+                    if bc and row_len + bu + 1 >= wl:
                         raise ForcedMove(bc)
-
-                    if ac and (au > bu or not bc):
-                        self.rows.append([row_len + au, ac])
-                    elif bc:
-                        self.rows.append([row_len + bu, bc])
                 else:
                     # Decision making for opponent row
-                    if row_len + au + min(self.per_turn, af) >= self.win_length:
+                    if row_len + au + min(self.per_turn, af) >= wl:
                         raise ForcedMove(ac)
 
-                    if row_len + bu + min(self.per_turn, bf) >= self.win_length:
+                    if row_len + bu + min(self.per_turn, bf) >= wl:
                         raise ForcedMove(bc)
+
+                if ac and row_len + au + af >= wl and (au > bu or not bc):
+                    self.rows.append([row_len + au + bu / 2, ac])
+                elif bc and row_len + bu + bf >= wl:
+                    self.rows.append([row_len + bu + au / 2, bc])
 
             row_len = 1
 

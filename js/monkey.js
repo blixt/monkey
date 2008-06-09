@@ -292,7 +292,7 @@ var MonkeyClient = new Class({
     },
     
     handleStatus: function (game) {
-        if (game !== false) {
+        if (game) {
             var pa = game.playing_as;
             var cp = game.current_player;
             var rs = this.ruleSets[game.rule_set_id];
@@ -397,7 +397,9 @@ var MonkeyClient = new Class({
         }
         
         $clear(this.timer);
-        if (this.game.state == 'waiting') {
+        if (!this.game) {
+            this.timer = this.refresh.delay(2000, this);
+        } else if (this.game.state == 'waiting') {
             this.timer = this.refresh.delay(6000, this);
         } else if (this.game.state == 'playing') {
             this.timer = this.refresh.delay(2000, this);
