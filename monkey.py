@@ -53,75 +53,18 @@ class MoveError(Error):
     """Thrown when a move cannot be made."""
     pass
 
-class Row(object):
-    def __init__(self, length, player, expand_points):
-        self.length = length
-        self.player = player
-        self.expand_points = expand_points
-
-    def __repr__(self):
-        return '%s(%d, %d, %s)' % (self.__class__.__name__, self.length,
-                                   self.player, self.expand_points)
-
-class RowCombos(object):
-    """Represents every relevant horizontal, vertical and diagonal row on a
-    board.
-
-    A row is considered relevant if it can result in a win or a loss in the
-    next turn, or if no such row exists, the longest row that the player has.
+class ForcedMove(Exception):
+    """Special exception for stopping board scanning and returning a position
     """
-    def __init__(self, board, player, win_length, per_turn):
-        self.board = board
-        self.board_width = len(board)
-        self.board_height = len(board[0])
-        self.player = player
-        self.win_length = win_length
-        self.per_turn = per_turn
-        self.longest = 0
-        self.must_block = False
-        self.rows = []
-        self.available = []
+    pass
 
-        ox = self.board_width - 1
-
-        # Horizontal checks
-        for y in xrange(0, self.board_height):
-            cp1, rl1 = 0, 0
-            cp2, rl2 = 0, 0
-            cp3, rl3 = 0, 0
-            for x in xrange(0, self.board_width + 1):
-                # Keep track of available positions
-                if x < self.board_width and not self.board[x][y]:
-                    self.available.append((x, y))
-
-                cp1, rl1 = self.check(cp1, rl1, x, y, 1, 0)
-                # Skip checks that will be made by vertical checks
-                if y == 0: continue
-                cp2, rl2 = self.check(cp2, rl2, x, y + x, 1, 1)
-                cp3, rl3 = self.check(cp3, rl3, ox - x, y + x, -1, 1)
-
-        # Vertical checks
-        for x in xrange(0, self.board_width):
-            cp1, rl1 = 0, 0
-            cp2, rl2 = 0, 0
-            cp3, rl3 = 0, 0
-            for y in xrange(0, self.board_height + 1):
-                cp1, rl1 = self.check(cp1, rl1, x, y, 0, 1)
-                cp2, rl2 = self.check(cp2, rl2, y + x, y, 1, 1)
-                cp3, rl3 = self.check(cp3, rl3, -y + x, y, -1, 1)
-
-        # Remove irrelevant rows
-        def f(x):
-            if self.must_block:
-                return x.player != player
-            else:
-                return x.length >= self.longest and x.player == player
-
-        self.rows = filter(f, self.rows)
+class CpuPlayer(object):
+    def __init__(self):
+        self.player = Player.from_user(users.User('cpu@mnk'), 'CPU')
 
     def check(self, cur_player, row_len, x, y, dx, dy):
         """Checks a position to determine if it is part of a row and if so,
-        store it in the collection along with its expand points.
+        store it in a collection along with its expand points.
 
         Expand points are points before and after the row that can be filled to
         reach the win length.
@@ -138,64 +81,59 @@ class RowCombos(object):
             row_len += 1
         else:
             if prev_player > 0:
-                # Check for available tiles in both directions along the row
-                # We'll call these tiles "expand points"
-                expand_points = []
-                a, b = True, True
+                al, bl = True, True
+                af, bf = 0, 0
+                au, bu = 0, 0
+                ac, bc = None, None
                 for o in xrange(0, self.win_length - row_len):
                     # After row
-                    if a:
+                    if al:
                         ox, oy = x + dx * o, y + dy * o
                         if self.valid(ox, oy):
                             if not self.board[ox][oy]:
-                                expand_points.append((ox, oy))
+                                if o == 0: ac = (ox, oy)
+                                af += 1
                             elif self.board[ox][oy] == prev_player:
-                                if prev_player == self.player: row_len += 1
+                                au += 1
                             else:
-                                a = False
+                                al = False
 
                     # Before row
-                    if b:
+                    if bl:
                         do = 1 + row_len + o
                         ox, oy = x - dx * do, y - dy * do
                         if self.valid(ox, oy):
                             if not self.board[ox][oy]:
-                                expand_points.append((ox, oy))
+                                if o == 0: bc = (ox, oy)
+                                bf += 1
                             elif self.board[ox][oy] == prev_player:
-                                if prev_player == self.player: row_len += 1
+                                bu += 1
                             else:
-                                b = False
+                                bl = False
 
-                # Only add rows of strategic value
-                add = False
-                if prev_player == self.player:
+                if prev_player == self.index:
                     # Decision making for own row
-                    if row_len >= self.longest and row_len + len(expand_points) >= self.win_length:
-                        add = not self.must_block
-                        self.longest = row_len
+                    if ac and row_len + au + 1 >= self.win_length:
+                        raise ForcedMove(ac)
+
+                    if bc and row_len + bu + 1 >= self.win_length:
+                        raise ForcedMove(bc)
+
+                    if ac and (au > bu or not bc):
+                        self.rows.append([row_len + au, ac])
+                    elif bc:
+                        self.rows.append([row_len + bu, bc])
                 else:
                     # Decision making for opponent row
-                    moves = min(self.per_turn, len(expand_points))
-                    if row_len + moves >= self.win_length:
-                        add = True
-                        self.must_block = True
-                
-                if add:
-                    self.rows.append(Row(row_len, prev_player, expand_points))
+                    if row_len + au + min(self.per_turn, af) >= self.win_length:
+                        raise ForcedMove(ac)
+
+                    if row_len + bu + min(self.per_turn, bf) >= self.win_length:
+                        raise ForcedMove(bc)
 
             row_len = 1
 
         return cur_player, row_len
-
-    def valid(self, x, y):
-        """Returns True if a position is valid; otherwise, False.
-        """
-        return (x >= 0 and x < self.board_width and
-                y >= 0 and y < self.board_height)
-
-class CpuPlayer(object):
-    def __init__(self):
-        self.player = Player.from_user(users.User('cpu@mnk'), 'CPU')
 
     def move(self, game):
         """Performs an "intelligent" move.
@@ -206,22 +144,81 @@ class CpuPlayer(object):
            it.
         3. Find the longest rows the CPU player has that can grow long enough
            to result in a win and extend one of them.
-        4. Place a tile randomly on the board.
+        4. Place a tile near the middle of the board.
         """
-        player = game.players.index(self.player.key()) + 1
+        self.board = game.unpack_board()
+        self.index = game.players.index(self.player.key()) + 1
+
         rules = game.rule_set
-        combos = RowCombos(game.unpack_board(), player, rules.k, rules.p)
+        self.board_width = rules.m
+        self.board_height = rules.n
+        self.win_length = rules.k
+        self.per_turn = rules.p
+        self.rows = []
 
-        if len(combos.rows) > 0:
-            # Get a row to work with (rows will already be filtered according to
-            # the rules above)
-            row = random.choice(combos.rows)
-            # Only choose between some of the first expand points
-            x, y = random.choice(row.expand_points[0:1])
-        else:
-            x, y = random.choice(combos.available)
+        loc = None
+        ox = self.board_width - 1
 
-        game.move(self.player, x, y)
+        try:
+            # Horizontal checks
+            for y in xrange(0, self.board_height):
+                cp1, rl1 = 0, 0
+                cp2, rl2 = 0, 0
+                cp3, rl3 = 0, 0
+                for x in xrange(0, self.board_width + 1):
+                    cp1, rl1 = self.check(cp1, rl1, x, y, 1, 0)
+
+                    # Skip checks that will be made by vertical checks
+                    if y == 0: continue
+
+                    cp2, rl2 = self.check(cp2, rl2, x, y + x, 1, 1)
+                    cp3, rl3 = self.check(cp3, rl3, ox - x, y + x, -1, 1)
+
+            # Vertical checks
+            for x in xrange(0, self.board_width):
+                cp1, rl1 = 0, 0
+                cp2, rl2 = 0, 0
+                cp3, rl3 = 0, 0
+                for y in xrange(0, self.board_height + 1):
+                    cp1, rl1 = self.check(cp1, rl1, x, y, 0, 1)
+                    cp2, rl2 = self.check(cp2, rl2, y + x, y, 1, 1)
+                    cp3, rl3 = self.check(cp3, rl3, -y + x, y, -1, 1)
+
+            if len(self.rows) > 0:
+                # Order rows by importance
+                def o(x, y):
+                    s = cmp(y[0], x[0])
+                    return random.randint(-1, 1) if not s else s
+
+                self.rows.sort(o)
+                loc = self.rows[0][1]
+        except ForcedMove, (c,):
+            loc = c
+
+        if not loc:
+            # Crazy, inefficient method of getting all positions, in order of
+            # closeness to center
+            locs = [(x, y)
+                    for y in xrange(self.board_height)
+                    for x in xrange(self.board_width)]
+
+            cx, cy = int(self.board_width / 2), int(self.board_height / 2)
+            def closer(x, y):
+                return cmp((x[0] - cx) ** 2 + (x[1] - cy) ** 2,
+                           (y[0] - cx) ** 2 + (y[1] - cy) ** 2)
+
+            locs.sort(closer)
+
+            for loc in locs:
+                if not self.board[loc[0]][loc[1]]: break
+
+        game.move(self.player, loc[0], loc[1])
+
+    def valid(self, x, y):
+        """Returns True if a position is valid; otherwise, False.
+        """
+        return (x >= 0 and x < self.board_width and
+                y >= 0 and y < self.board_height)
 
 class Player(db.Model):
     user = db.UserProperty()
@@ -379,8 +376,7 @@ class Game(db.Model):
         cpu = CpuPlayer()
         key = cpu.player.key()
         if key in self.players:
-            turn = self.players.index(key) + 1
-            if turn == self.current_player:
+            if self.players.index(key) + 1 == self.current_player:
                 cpu.move(self)
     
     def move(self, player, x, y):

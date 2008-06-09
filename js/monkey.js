@@ -84,6 +84,10 @@ var MonkeyService = new Class({
         this.parent('/game/');
     },
 
+    addCpuPlayer: function (gameId, onSuccess, onError) {
+        this.call('add_cpu_player', { game_id: gameId }, onSuccess, onError);
+    },
+
     createGame: function (ruleSetId, onSuccess, onError) {
         this.call('create', { rule_set_id: ruleSetId }, onSuccess, onError);
     },
@@ -131,6 +135,9 @@ var MonkeyClient = new Class({
                 new Element('p').adopt(
                     mc.html.joinOrLeave = new Element('button', {
                         text: 'Join'
+                    }),
+                    mc.html.addCpuPlayer = new Element('button', {
+                        text: 'Add CPU player'
                     }),
                     new Element('button', {
                         events: { click: mc.setMode.bind(mc, MonkeyClient.Mode.lobby) },
@@ -325,6 +332,14 @@ var MonkeyClient = new Class({
                 jol.onclick = pa ? this.leaveGame.bind(this) : this.joinGame.bind(this, this.gameId);
             } else {
                 jol.disabled = true;
+            }
+            
+            var acp = this.html.addCpuPlayer;
+            if (game.state == 'waiting' && pa && !game.players.contains('CPU')) {
+                acp.disabled = false;
+                acp.onclick = this.service.addCpuPlayer.bind(this.service, this.gameId);
+            } else {
+                acp.disabled = true;
             }
 
             this.html.players.empty();
