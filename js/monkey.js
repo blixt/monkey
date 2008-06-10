@@ -148,6 +148,8 @@ var MonkeyClient = new Class({
                 ),
                 mc.html.gameStatus = new Element('p'),
                 mc.html.players = new Element('ol', { 'class': 'players' }),
+                mc.html.ruleSetName = new Element('p', { 'class': 'rule-set-name' }),
+                mc.html.ruleSetDescription = new Element('p', { 'class': 'rule-set-description' }),
                 new Element('table').adopt(
                     mc.html.gameBoard = new Element('tbody')
                 )
@@ -228,6 +230,10 @@ var MonkeyClient = new Class({
         });
 
         mc.setMode(MonkeyClient.Mode.lobby);
+    },
+    
+    addCpuPlayer: function () {
+        this.service.addCpuPlayer(this.gameId, this.refresh.bind(this));
     },
     
     createGame: function (ruleSetId) {
@@ -354,6 +360,9 @@ var MonkeyClient = new Class({
 
             this.html.game.set('class', 'game player-' + pa);
             this.html.gameStatus.set('text', status);
+            this.html.ruleSetName.set('text', rs.name);
+            this.html.ruleSetDescription.set('text', rs.m + '×' + rs.n + ' board, ' + rs.k + ' in a row to win, place ' + rs.q +
+                                                     (rs.p == rs.q ? ' each turn.' : ' first turn, then ' + rs.p + ' following turns.'));
 
             var jol = this.html.joinOrLeave;
             jol.set('text', pa ? (game.state == 'waiting' ? 'Leave' : 'Abandon') : 'Join');
@@ -367,7 +376,7 @@ var MonkeyClient = new Class({
             var acp = this.html.addCpuPlayer;
             if (game.state == 'waiting' && pa && !game.players.contains('CPU')) {
                 acp.disabled = false;
-                acp.onclick = this.service.addCpuPlayer.bind(this.service, this.gameId);
+                acp.onclick = this.addCpuPlayer.bind(this);
             } else {
                 acp.disabled = true;
             }

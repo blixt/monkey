@@ -10,7 +10,7 @@ indexes:
 # automatically uploaded to the admin console when you next deploy
 # your application using appcfg.py.
 
-# Used 1045 times in query history.
+# Used 1349 times in query history.
 - kind: Game
   properties:
   - name: players
@@ -18,7 +18,7 @@ indexes:
   - name: last_update
     direction: desc
 
-# Used 1043 times in query history.
+# Used 1127 times in query history.
 - kind: Game
   properties:
   - name: state

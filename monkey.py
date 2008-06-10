@@ -128,10 +128,15 @@ class CpuPlayer(object):
                     if row_len + bu + min(self.per_turn, bf) >= wl:
                         raise ForcedMove(bc)
 
-                if ac and row_len + au + af >= wl and (au > bu or not bc):
-                    self.rows.append([row_len + au + bu / 2, ac])
-                elif bc and row_len + bu + bf >= wl:
-                    self.rows.append([row_len + bu + au / 2, bc])
+                if ac and row_len + au + af + bf >= wl:
+                    score = (row_len + au) * 3 + af
+                    if prev_player == self.index: score += wl / 2
+                    self.moves.append([score, ac])
+
+                if bc and row_len + bu + af + bf >= wl:
+                    score = (row_len + bu) * 3 + bf
+                    if prev_player == self.index: score += wl / 2
+                    self.moves.append([score, bc])
 
             row_len = 1
 
@@ -156,7 +161,7 @@ class CpuPlayer(object):
         self.board_height = rules.n
         self.win_length = rules.k
         self.per_turn = rules.p
-        self.rows = []
+        self.moves = []
 
         loc = None
         ox = self.board_width - 1
@@ -186,14 +191,27 @@ class CpuPlayer(object):
                     cp2, rl2 = self.check(cp2, rl2, y + x, y, 1, 1)
                     cp3, rl3 = self.check(cp3, rl3, -y + x, y, -1, 1)
 
-            if len(self.rows) > 0:
-                # Order rows by importance
+            m = self.moves
+            if len(m) > 0:
+                # Merge moves
+                for a in xrange(len(m) - 1, 0, -1):
+                    for b in xrange(a + 1, len(m)):
+                        if m[a][1] == m[b][1]:
+                            m[b][0] = (max(m[a][0], m[b][0]) +
+                                       min(m[a][0], m[b][0])) / 2
+                            del m[a]
+                            break
+                        
+
+                # Order moves by score
                 def o(x, y):
                     s = cmp(y[0], x[0])
                     return random.randint(-1, 1) if not s else s
 
-                self.rows.sort(o)
-                loc = self.rows[0][1]
+                m.sort(o)
+
+                # Perform best move
+                loc = m[0][1]
         except ForcedMove, (c,):
             loc = c
 

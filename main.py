@@ -102,7 +102,7 @@ class GameService(util.ServiceHandler):
             playing.filter('state =', 'playing')
             playing.order('-last_update')
 
-            results = filter(lambda g: pkey not in g.players, playing.fetch(15))
+            results = filter(lambda g: pkey not in g.players, playing.fetch(10))
         elif mode == 'past':
             history = monkey.Game.gql('WHERE state IN :1 AND '
                                       'players = :2 ORDER BY last_update DESC',

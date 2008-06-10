@@ -91,6 +91,18 @@ div.monkey div.game ol li.open {
     color: #666;
 }
 
+div.monkey div.game p.rule-set-description, div.monkey div.game p.rule-set-name {
+    text-align: center;
+}
+
+div.monkey div.game p.rule-set-description {
+    font-size: medium;
+}
+
+div.monkey div.game p.rule-set-name {
+    margin-bottom: 0;
+}
+
 div.monkey div.game table {
     border: #000 solid 2px;
     border-collapse: collapse;
