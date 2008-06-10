@@ -59,7 +59,7 @@ class ForcedMove(Exception):
     pass
 
 class CpuPlayer(object):
-    def __init__(self, cleverness = 1.0):
+    def __init__(self, cleverness = 10.0):
         self.player = Player.from_user(users.User('cpu@mnk'), 'CPU')
         self.cleverness = cleverness
 
@@ -78,45 +78,48 @@ class CpuPlayer(object):
         else:
             cur_player = 0
 
-        wl = self.win_length
-
         if cur_player > 0 and cur_player == prev_player:
             row_len += 1
+        elif prev_player > 0:
+            al, bl = True, True
+            af, bf = 0, 0
+            au, bu = 0, 0
+            ac, bc = None, None
+            for o in xrange(0, self.win_length - row_len):
+                # After row.
+                if al:
+                    ox, oy = x + dx * o, y + dy * o
+                    if self.valid(ox, oy):
+                        if not self.board[ox][oy]:
+                            if o == 0: ac = (ox, oy)
+                            af += 1
+                        elif self.board[ox][oy] == prev_player:
+                            au += 1
+                        else:
+                            al = False
+                    else:
+                        al = False
+
+                # Before row.
+                if bl:
+                    do = 1 + row_len + o
+                    ox, oy = x - dx * do, y - dy * do
+                    if self.valid(ox, oy):
+                        if not self.board[ox][oy]:
+                            if o == 0: bc = (ox, oy)
+                            bf += 1
+                        elif self.board[ox][oy] == prev_player:
+                            bu += 1
+                        else:
+                            bl = False
+                    else:
+                        bl = False
+
+            if ac: self.handle_move(ac, prev_player, row_len + au, af, bf)
+            if bc: self.handle_move(bc, prev_player, row_len + bu, bf, af)
+
+            row_len = 1
         else:
-            if prev_player > 0:
-                al, bl = True, True
-                af, bf = 0, 0
-                au, bu = 0, 0
-                ac, bc = None, None
-                for o in xrange(0, wl - row_len):
-                    # After row.
-                    if al:
-                        ox, oy = x + dx * o, y + dy * o
-                        if self.valid(ox, oy):
-                            if not self.board[ox][oy]:
-                                if o == 0: ac = (ox, oy)
-                                af += 1
-                            elif self.board[ox][oy] == prev_player:
-                                au += 1
-                            else:
-                                al = False
-
-                    # Before row.
-                    if bl:
-                        do = 1 + row_len + o
-                        ox, oy = x - dx * do, y - dy * do
-                        if self.valid(ox, oy):
-                            if not self.board[ox][oy]:
-                                if o == 0: bc = (ox, oy)
-                                bf += 1
-                            elif self.board[ox][oy] == prev_player:
-                                bu += 1
-                            else:
-                                bl = False
-
-                if ac: self.handle_move(ac, prev_player, row_len + au, af, bf)
-                if bc: self.handle_move(bc, prev_player, row_len + bu, bf, af)
-
             row_len = 1
 
         return cur_player, row_len
@@ -139,8 +142,8 @@ class CpuPlayer(object):
         # Ignore the move if it cannot ever result in a win.
         if length + avail + oavail >= self.win_length:
             # Calculate the value of the move.
-            score = length * 3 + avail
-            if cpu: score += self.win_length / 2
+            score = length * 3.0 + avail
+            if cpu: score += self.win_length / 2.0
             self.moves.append([score, move])
 
     def move(self, game):
@@ -203,7 +206,7 @@ class CpuPlayer(object):
                     for b in xrange(a + 1, len(m)):
                         if m[a][1] == m[b][1]:
                             m[b][0] = (max(m[a][0], m[b][0]) +
-                                       min(m[a][0], m[b][0])) / 2
+                                       min(m[a][0], m[b][0]) / 2.0)
                             del m[a]
                             break
 
