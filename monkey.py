@@ -59,8 +59,9 @@ class ForcedMove(Exception):
     pass
 
 class CpuPlayer(object):
-    def __init__(self):
+    def __init__(self, cleverness = 1.0):
         self.player = Player.from_user(users.User('cpu@mnk'), 'CPU')
+        self.cleverness = cleverness
 
     def check(self, cur_player, row_len, x, y, dx, dy):
         """Checks a position to determine if it is part of a row and if so,
@@ -88,7 +89,7 @@ class CpuPlayer(object):
                 au, bu = 0, 0
                 ac, bc = None, None
                 for o in xrange(0, wl - row_len):
-                    # After row
+                    # After row.
                     if al:
                         ox, oy = x + dx * o, y + dy * o
                         if self.valid(ox, oy):
@@ -100,7 +101,7 @@ class CpuPlayer(object):
                             else:
                                 al = False
 
-                    # Before row
+                    # Before row.
                     if bl:
                         do = 1 + row_len + o
                         ox, oy = x - dx * do, y - dy * do
@@ -113,34 +114,34 @@ class CpuPlayer(object):
                             else:
                                 bl = False
 
-                if prev_player == self.index:
-                    # Decision making for own row
-                    if ac and row_len + au + 1 >= wl:
-                        raise ForcedMove(ac)
-
-                    if bc and row_len + bu + 1 >= wl:
-                        raise ForcedMove(bc)
-                else:
-                    # Decision making for opponent row
-                    if row_len + au + min(self.per_turn, af) >= wl:
-                        raise ForcedMove(ac)
-
-                    if row_len + bu + min(self.per_turn, bf) >= wl:
-                        raise ForcedMove(bc)
-
-                if ac and row_len + au + af + bf >= wl:
-                    score = (row_len + au) * 3 + af
-                    if prev_player == self.index: score += wl / 2
-                    self.moves.append([score, ac])
-
-                if bc and row_len + bu + af + bf >= wl:
-                    score = (row_len + bu) * 3 + bf
-                    if prev_player == self.index: score += wl / 2
-                    self.moves.append([score, bc])
+                if ac: self.handle_move(ac, prev_player, row_len + au, af, bf)
+                if bc: self.handle_move(bc, prev_player, row_len + bu, bf, af)
 
             row_len = 1
 
         return cur_player, row_len
+
+    def handle_move(self, move, player, length, avail, oavail):
+        """Determines how a move should be handled and the value of the move.
+        """
+        cpu = player == self.index
+        
+        # Force a move to win or prevent a loss.
+        # Blocking is queued until after all rows have been processed
+        # to avoid blocking when a win could have been achieved.
+        max_expansion = min(self.turns_left if cpu else self.per_turn, avail)
+        if length + max_expansion >= self.win_length:
+            if cpu:
+                raise ForcedMove(move)
+            else:
+                self.force.append(move)
+
+        # Ignore the move if it cannot ever result in a win.
+        if length + avail + oavail >= self.win_length:
+            # Calculate the value of the move.
+            score = length * 3 + avail
+            if cpu: score += self.win_length / 2
+            self.moves.append([score, move])
 
     def move(self, game):
         """Performs an "intelligent" move.
@@ -161,13 +162,15 @@ class CpuPlayer(object):
         self.board_height = rules.n
         self.win_length = rules.k
         self.per_turn = rules.p
+        self.turns_left = rules.turns_left(game.turn)
+        self.force = []
         self.moves = []
 
         loc = None
         ox = self.board_width - 1
 
         try:
-            # Horizontal checks
+            # Horizontal checks.
             for y in xrange(0, self.board_height):
                 cp1, rl1 = 0, 0
                 cp2, rl2 = 0, 0
@@ -175,13 +178,13 @@ class CpuPlayer(object):
                 for x in xrange(0, self.board_width + 1):
                     cp1, rl1 = self.check(cp1, rl1, x, y, 1, 0)
 
-                    # Skip checks that will be made by vertical checks
+                    # Skip checks that will be made by vertical checks.
                     if y == 0: continue
 
                     cp2, rl2 = self.check(cp2, rl2, x, y + x, 1, 1)
                     cp3, rl3 = self.check(cp3, rl3, ox - x, y + x, -1, 1)
 
-            # Vertical checks
+            # Vertical checks.
             for x in xrange(0, self.board_width):
                 cp1, rl1 = 0, 0
                 cp2, rl2 = 0, 0
@@ -192,8 +195,10 @@ class CpuPlayer(object):
                     cp3, rl3 = self.check(cp3, rl3, -y + x, y, -1, 1)
 
             m = self.moves
-            if len(m) > 0:
-                # Merge moves
+            if len(self.force) > 0:
+                raise ForcedMove(self.force[0])
+            elif len(m) > 0:
+                # Merge moves.
                 for a in xrange(len(m) - 1, 0, -1):
                     for b in xrange(a + 1, len(m)):
                         if m[a][1] == m[b][1]:
@@ -201,23 +206,23 @@ class CpuPlayer(object):
                                        min(m[a][0], m[b][0])) / 2
                             del m[a]
                             break
-                        
 
-                # Order moves by score
+                # Order moves by score.
                 def o(x, y):
-                    s = cmp(y[0], x[0])
+                    s = cmp(int(y[0] * self.cleverness),
+                            int(x[0] * self.cleverness))
                     return random.randint(-1, 1) if not s else s
 
                 m.sort(o)
 
-                # Perform best move
+                # Perform best move.
                 loc = m[0][1]
         except ForcedMove, (c,):
             loc = c
 
         if not loc:
             # Crazy, inefficient method of getting all positions, in order of
-            # closeness to center
+            # closeness to center.
             locs = [(x, y)
                     for y in xrange(self.board_height)
                     for x in xrange(self.board_width)]
@@ -275,7 +280,7 @@ class Player(db.Model):
                                 'AND expires > :2',
                                 session, time.time()).get()
             if not player:
-                pass # Require that the user register or log in
+                pass # Require that the user register or log in.
 
         return player
 
@@ -323,16 +328,16 @@ class RuleSet(db.Model):
         ca, cb, cc, cd = 0, 0, 0, 0
         for i in xrange(-self.k + 1, self.k):
             tx, txi, ty = x + i, x - i, y + i
-            # Test horizontal -
+            # Test horizontal. --
             if tx >= 0 and tx < self.m:
                 ca += 1 if board[tx][y] == player else -ca
-            # Test vertical |
+            # Test vertical. |
             if ty >= 0 and ty < self.n:
                 cb += 1 if board[x][ty] == player else -cb
-            # Test diagonal \
+            # Test diagonal. \
             if tx >= 0 and ty >= 0 and tx < self.m and ty < self.n:
                 cc += 1 if board[tx][ty] == player else -cc
-            # Test diagonal /
+            # Test diagonal. /
             if txi >= 0 and ty >= 0 and txi < self.m and ty < self.n:
                 cd += 1 if board[txi][ty] == player else -cd
 
@@ -341,13 +346,18 @@ class RuleSet(db.Model):
 
         return False
 
+    def turns_left(self, turn):
+        """Determine the number of turns until it's another player's turn.
+        """
+        if turn < self.q: return self.q - turn
+        return self.p - (turn - self.q) % self.p
+
     def whose_turn(self, turn):
         """Determines whose turn it is based on the rule set and a zero-based
         turn index.
         """
         if turn < self.q: return 1
-        return int(
-            (math.floor((turn - self.q) / self.p) + 1) % self.num_players + 1)
+        return int((turn - self.q) / self.p + 1) % self.num_players + 1
 
 class Game(db.Model):
     """The data structure for an m,n,k,p,q-game.
