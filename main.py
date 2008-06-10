@@ -48,7 +48,7 @@ class GameService(util.ServiceHandler):
         rule_set = monkey.RuleSet.get_by_id(rule_set_id)
         if not rule_set: raise ValueError('Invalid rule set id.')
 
-        player = monkey.Player.get_current()
+        player = monkey.Player.get_current(self)
         game = monkey.Game(rule_set = rule_set)
         game.put()
 
@@ -62,7 +62,7 @@ class GameService(util.ServiceHandler):
         game = monkey.Game.get_by_id(game_id)
         if not game: raise ValueError('Invalid game id.')
 
-        player = monkey.Player.get_current()
+        player = monkey.Player.get_current(self)
         player.join(game)
 
         return self.status(game_id)
@@ -73,7 +73,7 @@ class GameService(util.ServiceHandler):
         game = monkey.Game.get_by_id(game_id)
         if not game: raise ValueError('Invalid game id.')
 
-        player = monkey.Player.get_current()
+        player = monkey.Player.get_current(self)
         player.leave(game)
 
     def list(self, mode = 'play'):
@@ -84,7 +84,7 @@ class GameService(util.ServiceHandler):
             view - Returns games that other players are playing.
             past - Returns recent games that the player has played.
         """
-        pkey = monkey.Player.get_current().key()
+        pkey = monkey.Player.get_current(self).key()
 
         if mode == 'play':
             playing = monkey.Game.all()
@@ -135,7 +135,7 @@ class GameService(util.ServiceHandler):
         game = monkey.Game.get_by_id(game_id)
         if not game: raise ValueError('Invalid game id.')
 
-        player = monkey.Player.get_current()
+        player = monkey.Player.get_current(self)
         game.move(player, x, y)
 
         return self.status(game_id)
@@ -147,7 +147,7 @@ class GameService(util.ServiceHandler):
             raise ValueError('Invalid name.')
 
         rule_set = monkey.RuleSet(name = name,
-                                  author = monkey.Player.get_current(),
+                                  author = monkey.Player.get_current(self),
                                   num_players = num_players,
                                   m = m, n = n, k = k,
                                   p = p, q = q)
@@ -178,7 +178,7 @@ class GameService(util.ServiceHandler):
 
         if turn != None and game.turn == turn: return False
 
-        pkey = monkey.Player.get_current().key()
+        pkey = monkey.Player.get_current(self).key()
         if pkey in game.players:
             playing_as = game.players.index(pkey) + 1
         else:

@@ -35,7 +35,7 @@ subsequent turns.
 from google.appengine.api import users
 from google.appengine.ext import db
 
-import math, random, re, string, util
+import datetime, hashlib, random, string, time, util, uuid
 
 class Error(Exception):
     """Base of all exceptions in the monkey module."""
@@ -248,11 +248,11 @@ class CpuPlayer(object):
 class Player(db.Model):
     user = db.UserProperty()
     nickname = db.StringProperty()
+    password = db.StringProperty()
     draws = db.IntegerProperty(default = 0)
     losses = db.IntegerProperty(default = 0)
     wins = db.IntegerProperty(default = 0)
     session = db.StringProperty()
-    expires = db.IntegerProperty()
 
     @staticmethod
     def from_user(user, nickname = None):
@@ -268,7 +268,7 @@ class Player(db.Model):
         return player
 
     @staticmethod
-    def get_current(session = None):
+    def get_current(handler = None):
         """Retrieves a Player instance for the currently logged in user.
         """
         curuser = users.get_current_user()
@@ -276,11 +276,17 @@ class Player(db.Model):
             # User is logged in with a Google account.
             player = Player.from_user(curuser)
         else:
-            player = Player.gql('WHERE session = :1 '
-                                'AND expires > :2',
-                                session, time.time()).get()
+            try:
+                session = handler.request.cookies['session']
+                player = Player.gql('WHERE session = :1', session).get()
+            except KeyError:
+                player = None
+
             if not player:
-                pass # Require that the user register or log in.
+                anon_id = random.randint(10000, 99999)
+                player = Player.from_user(users.User('anon%d@mnk' % (anon_id)),
+                                          'Anonymous%d' % (anon_id))
+                player.start_session(handler)
 
         return player
 
@@ -290,9 +296,24 @@ class Player(db.Model):
         game.add_player(self)
 
     def leave(self, game):
-        """Convenience method from removing a player from a game.
+        """Convenience method for removing a player from a game.
         """
         game.remove_player(self)
+
+    def start_session(self, handler):
+        """Gives the player a session id and stores it as a cookie in the user's
+        browser.
+        """
+        self.session = uuid.uuid4().get_hex()
+        self.put()
+
+        # Build and set cookie
+        future = datetime.datetime.utcnow() + datetime.timedelta(days = 7)
+        expires = time.strftime('%a, %d-%b-%Y %H:%M:%S GMT', future.timetuple())
+        cookie = '%s=%s; expires=%s' % ('session', self.session, expires)
+        handler.response.headers['Set-Cookie'] = cookie
+
+        handler.request.cookies['session'] = self.session
 
 class RuleSet(db.Model):
     """A rule set for an m,n,k,p,q-game.
