@@ -235,7 +235,7 @@ class GameService(util.ServiceHandler):
 
 def main():
     application = webapp.WSGIApplication([
-        ('/game/.*', GameService)
+        ('/game/(\\w*)', GameService)
     ])
     wsgiref.handlers.CGIHandler().run(application)
 

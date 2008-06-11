@@ -66,9 +66,7 @@ class ServiceHandler(webapp.RequestHandler):
         return (not action.startswith('_') and
                 action in self.__class__.__dict__)
                
-    def get(self):
-        action = self.request.path.split('/')[-1]
-
+    def get(self, action):
         out = { 'status': 'unknown',
                 'response': None }
 

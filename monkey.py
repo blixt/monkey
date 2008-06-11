@@ -147,8 +147,8 @@ class CpuPlayer(object):
         # Ignore the move if it cannot ever result in a win.
         if length + avail + oavail >= self.win_length:
             # Calculate the value of the move.
-            score = length * 3.0 + avail
-            if cpu: score += self.win_length / 2.0
+            score = length * 6.0 + avail
+            if cpu: score += self.win_length * 2.0
             self.moves.append([score, move])
 
     def join(self, game):
@@ -226,17 +226,28 @@ class CpuPlayer(object):
                     cp3, rl3 = self.check(cp3, rl3, -y + x, y, -1, 1)
 
             m = self.moves
-            if len(self.force) > 0:
-                raise ForcedMove(self.force[0])
-            elif len(m) > 0:
-                # Merge moves.
-                for a in xrange(len(m) - 1, 0, -1):
-                    for b in xrange(a + 1, len(m)):
-                        if m[a][1] == m[b][1]:
-                            m[b][0] = (max(m[a][0], m[b][0]) +
-                                       min(m[a][0], m[b][0]) / 2.0)
-                            del m[a]
-                            break
+            if len(m) > 0:
+                # Merge moves to the same location.
+                for a in xrange(len(m)):
+                    try:
+                        # Value, coordinate
+                        av, ac = m[a][0], m[a][1]
+                        
+                        # Looping backwards so that index is not affected by
+                        # deleting items in the list.
+                        for b in xrange(len(m) - 1, a):
+                            bv, bc = m[b][0], m[b][1]
+                            
+                            # Same coordinates?
+                            if ac == bc:
+                                mn, mx = (av, bv) if av < bv else (bv, av)
+                                av = mx + mn / 2.0
+                                del m[b]
+
+                        m[a][0] = av
+                    except KeyError:
+                        # Reached the end of the list; stop the loop.
+                        break
 
                 # Order moves by score.
                 def o(x, y):
@@ -245,6 +256,13 @@ class CpuPlayer(object):
                     return random.randint(-1, 1) if not s else s
 
                 m.sort(o)
+
+                # Forcing is done after merging and sorting so that the best
+                # block can be chosen.
+                if len(self.force) > 0:
+                    for move in m:
+                        if move[1] in self.force:
+                            raise ForcedMove(move[1])
 
                 # Perform best move.
                 loc = m[0][1]
@@ -325,6 +343,9 @@ class Player(db.Model):
                 player.start_session(handler)
 
         return player
+
+    def display_name(self):
+        return '%s (%d)' % (self.nickname, self.wins)
 
     def is_anonymous(self):
         return self.user == users.User('anonymous@mnk')
