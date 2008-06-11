@@ -35,7 +35,8 @@ subsequent turns.
 from google.appengine.api import users
 from google.appengine.ext import db
 
-import datetime, hashlib, random, string, time, util, uuid
+from datetime import datetime, timedelta
+import hashlib, random, re, string, time, util, uuid
 
 class Error(Exception):
     """Base of all exceptions in the monkey module."""
@@ -256,6 +257,7 @@ class Player(db.Model):
     losses = db.IntegerProperty(default = 0)
     wins = db.IntegerProperty(default = 0)
     session = db.StringProperty()
+    expires = db.DateTimeProperty()
 
     @staticmethod
     def from_user(user, nickname = None):
@@ -280,18 +282,25 @@ class Player(db.Model):
             player = Player.from_user(curuser)
         else:
             try:
+                # User has a session.
                 session = handler.request.cookies['session']
-                player = Player.gql('WHERE session = :1', session).get()
+                query = Player.all()
+                query.filter('session =', session)
+                query.filter('expires >', datetime.utcnow())
+                player = query.get()
             except KeyError:
                 player = None
 
             if not player:
-                anon_id = random.randint(10000, 99999)
-                player = Player.from_user(users.User('anon%d@mnk' % (anon_id)),
-                                          'Anonymous%d' % (anon_id))
+                # Create a new anonymous player.
+                player = Player(user = users.User('anonymous@mnk'),
+                                nickname = 'Anonymous')
                 player.start_session(handler)
 
         return player
+
+    def is_anonymous(self):
+        return self.user == users.User('anonymous@mnk')
 
     def join(self, game):
         """Convenience method for adding a player to a game.
@@ -303,19 +312,41 @@ class Player(db.Model):
         """
         game.remove_player(self)
 
+    def rename(self, nickname):
+        """Changes the nickname of the player.
+        """
+        if not re.match('^[A-Za-z]([\\-\\._ ]?[A-Z0-9a-z]+)*$', nickname):
+            raise ValueError('Invalid nickname.')
+        if len(nickname) < 3:
+            raise ValueError('Nickname too short.')
+        if len(nickname) > 20:
+            raise ValueError('Nickname too long.')
+
+        self.nickname = nickname
+        self.put()
+
+        # This results in very long query times and might have to be disabled.
+        # Everything would still work, it's just that games created before the
+        # player changed nickname will still show the old nickname.
+        games = Game.all().filter('players =', self.key())
+        for game in games:
+            game.update_player_names()
+            game.put()
+
     def start_session(self, handler):
         """Gives the player a session id and stores it as a cookie in the user's
         browser.
         """
         self.session = uuid.uuid4().get_hex()
+        self.expires = datetime.utcnow() + timedelta(days = 7)
         self.put()
 
         # Build and set cookie
-        future = datetime.datetime.utcnow() + datetime.timedelta(days = 7)
-        expires = time.strftime('%a, %d-%b-%Y %H:%M:%S GMT', future.timetuple())
-        cookie = '%s=%s; expires=%s' % ('session', self.session, expires)
-        handler.response.headers['Set-Cookie'] = cookie
+        ts = time.strftime('%a, %d-%b-%Y %H:%M:%S GMT',
+                           self.expires.timetuple())
+        cookie = '%s=%s; expires=%s' % ('session', self.session, ts)
 
+        handler.response.headers['Set-Cookie'] = cookie
         handler.request.cookies['session'] = self.session
 
 class RuleSet(db.Model):
@@ -398,7 +429,7 @@ class Game(db.Model):
                                     required = True,
                                     collection_name = 'games')
     added = db.DateTimeProperty(auto_now_add = True)
-    last_update = db.DateTimeProperty(auto_now = True)
+    last_update = db.DateTimeProperty(auto_now_add = True)
 
     def add_player(self, player):
         """Adds a player to the game and starts the game if it has enough
@@ -421,7 +452,7 @@ class Game(db.Model):
             self.current_player = 1
 
         self.update_player_names()
-        self.put()
+        self.put(True)
         self.handle_cpu()
 
     def handle_cpu(self):
@@ -488,7 +519,7 @@ class Game(db.Model):
         else:
             self.current_player = rs.whose_turn(self.turn)
 
-        self.put()
+        self.put(True)
         self.handle_cpu()
 
     def pack_board(self):
@@ -500,7 +531,7 @@ class Game(db.Model):
                                   for y in xrange(self.rule_set.n)], '')
                      for x in xrange(self.rule_set.m)]
 
-    def put(self):
+    def put(self, update_time = False):
         """Does some additional processing before the entity is stored to the
         data store.
         """
@@ -511,6 +542,7 @@ class Game(db.Model):
             self.data = ['0' * self.rule_set.m
                          for i in xrange(self.rule_set.n)]
 
+        if update_time: self.last_update = datetime.utcnow()
         db.Model.put(self)
 
     def remove_player(self, player):
@@ -524,13 +556,13 @@ class Game(db.Model):
             if len(self.players) > 1:
                 self.players.remove(player.key())
                 self.update_player_names()
-                self.put()
+                self.put(True)
             else:
                 self.delete()
         elif self.state == 'playing':
             self.state = 'aborted'
             self.turn = -1
-            self.put()
+            self.put(True)
         else:
             raise LeaveError('Cannot leave game.')
 

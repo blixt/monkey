@@ -4,6 +4,10 @@ runtime: python
 api_version: 1
 
 handlers:
+- url: /
+  static_files: misc/home.html
+  upload: misc/home\.html
+
 - url: /favicon\.ico
   mime_type: image/gif
   static_files: misc/favicon.gif

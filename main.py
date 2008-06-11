@@ -22,6 +22,7 @@ Registers the WSGI web application with request handlers, also defined
 in this file.
 """
 
+from google.appengine.api import users
 from google.appengine.ext import db, webapp
 
 import wsgiref.handlers
@@ -41,6 +42,11 @@ class GameService(util.ServiceHandler):
         cpu.player.join(game)
 
         return self.status(game_id)
+
+    def change_nickname(self, nickname):
+        player = monkey.Player.get_current(self)
+        player.rename(nickname)
+        return self.get_player_info()
         
     def create(self, rule_set_id):
         """Creates a new game.
@@ -55,6 +61,23 @@ class GameService(util.ServiceHandler):
         player.join(game)
 
         return game.key().id()
+
+    def get_player_info(self):
+        """Gets information about the currently logged in player.
+        """
+        user = users.get_current_user()
+        if user:
+            log_url = users.create_logout_url('/')
+        else:
+            log_url = users.create_login_url('/')
+        
+        player = monkey.Player.get_current(self)
+        return { 'nickname': player.nickname,
+                 'anonymous': player.is_anonymous(),
+                 'log_url': log_url,
+                 'wins': player.wins,
+                 'losses': player.losses,
+                 'draws': player.draws }
     
     def join(self, game_id):
         """Joins an existing game.
@@ -199,7 +222,6 @@ class HomePage(util.ExtendedHandler):
 
 def main():
     application = webapp.WSGIApplication([
-        ('/', HomePage),
         ('/game/.*', GameService)
     ])
     wsgiref.handlers.CGIHandler().run(application)

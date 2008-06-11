@@ -5,16 +5,10 @@
     padding: 15px;
 }
 
-#user {
-    font-size: medium;
-    line-height: 40px;
-    position: absolute;
-    right: 55px;
-    top: 30px;
-}
-
-#user a {
-    color: #8f0;
+#source {
+    border-top: #080 solid 1px;
+    margin: 0;
+    padding-top: .5em;
 }
 
 * {
@@ -66,28 +60,34 @@ div.monkey button {
 }
 
 div.monkey div.game ol {
+    border-bottom: #080 solid 1px;
     font-size: small;
     line-height: 1em;
     list-style: none;
-    margin-bottom: 1em;
+    margin-bottom: .7em;
     overflow: auto;
 }
 
 div.monkey div.game ol li {
     background: #efe;
+    border-color: #080;
+    border-style: solid;
+    border-width: 1px 1px 0;
     color: #080;
     float: left;
     margin-right: .5em;
-    padding: .3em;
+    padding: .5em;
 }
 
 div.monkey div.game ol li.current {
     background: #ffe;
-    color: #760;
+    border-color: #a80;
+    color: #a80;
 }
 
 div.monkey div.game ol li.open {
     background: #eee;
+    border-color: #666;
     color: #666;
 }
 
@@ -179,6 +179,11 @@ div.monkey div.lobby .rule-set {
     width: 60%;
 }
 
+div.monkey div.lobby tbody tr:hover {
+    outline-style: solid;
+    outline-width: 2px;
+}
+
 div.monkey div.lobby td {
     border-color: #eee;
     border-style: solid;
@@ -197,17 +202,30 @@ div.monkey div.lobby td.rule-set small {
     font-size: x-small;
 }
 
-div.monkey div.lobby td.slot, div.monkey div.lobby td.slot button {
+div.monkey div.lobby td.slot {
     font-size: small;
     line-height: 1em;
+}
+
+div.monkey div.lobby td.slot span {
+    color: #aaa;
+    font-style: italic;
 }
 
 div.monkey div.lobby th {
     font-family: Georgia, serif;
 }
 
+div.monkey div.lobby tr {
+    outline-color: #ccc;
+}
+
 div.monkey div.lobby tr.aborted td {
     color: #aaa;
+}
+
+div.monkey div.lobby tr.loss {
+    outline-color: #c00;
 }
 
 div.monkey div.lobby tr.loss td {
@@ -216,10 +234,18 @@ div.monkey div.lobby tr.loss td {
     color: #c00;
 }
 
+div.monkey div.lobby tr.win {
+    outline-color: #080;
+}
+
 div.monkey div.lobby tr.win td {
     background: #efe;
     border-color: #dfd;
     color: #080;
+}
+
+div.monkey div.lobby tr.playing {
+    outline-color: #fc0;
 }
 
 div.monkey div.lobby tr.playing td {
@@ -228,6 +254,7 @@ div.monkey div.lobby tr.playing td {
 }
 
 div.monkey div.lobby ul {
+    border-bottom: #080 solid 1px;
     list-style: none;
     margin: 1em 0 .5em;
     overflow: auto;
@@ -235,21 +262,51 @@ div.monkey div.lobby ul {
 
 div.monkey div.lobby ul a {
     background: #eee;
-    border: #ccc solid 1px;
-    color: #333;
+    border-color: #aaa;
+    border-style: solid;
+    border-width: 1px 1px 0;
+    color: #888;
     display: block;
+    outline: none;
     padding: .2em .5em;
     text-decoration: none;
 }
 
 div.monkey div.lobby ul li {
     float: left;
-    margin-right: .5em;
+    margin-left: .3em;
+}
+
+div.monkey div.lobby.past li.past a,
+div.monkey div.lobby.play li.play a,
+div.monkey div.lobby.view li.view a {
+    background-color: #efe;
+    border-color: #080;
+    color: #080;
+}
+
+div.monkey p.player {
+    color: #fff;
+    font-size: medium;
+    line-height: 40px;
+    position: absolute;
+    right: 55px;
+    top: 30px;
+}
+
+div.monkey p.player a {
+    color: #8f0;
+}
+
+div.monkey p.player a.alert {
+    background: #8f0;
+    color: #333;
 }
 
 div.monkey select {
     font-size: large;
     margin-right: .5em;
+    width: 200px;
 }
 
 div.monkey table {
