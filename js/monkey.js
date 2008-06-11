@@ -390,7 +390,7 @@ var MonkeyClient = new Class({
             }
             
             var acp = this.html.addCpuPlayer;
-            if (game.state == 'waiting' && pa && !game.players.contains('CPU')) {
+            if (game.state == 'waiting' && pa) {
                 acp.disabled = false;
                 acp.onclick = this.addCpuPlayer.bind(this);
             } else {

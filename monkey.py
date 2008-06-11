@@ -42,6 +42,10 @@ class Error(Exception):
     """Base of all exceptions in the monkey module."""
     pass
 
+class CpuError(Error):
+    """Thrown when the AI fails."""
+    pass
+
 class JoinError(Error):
     """Thrown when a player cannot join a game."""
     pass
@@ -60,8 +64,8 @@ class ForcedMove(Exception):
     pass
 
 class CpuPlayer(object):
-    def __init__(self, cleverness = 10.0):
-        self.player = Player.from_user(users.User('cpu@mnk'), 'CPU')
+    def __init__(self, player = None, cleverness = 10.0):
+        self.player = player
         self.cleverness = cleverness
 
     def check(self, cur_player, row_len, x, y, dx, dy):
@@ -147,6 +151,27 @@ class CpuPlayer(object):
             if cpu: score += self.win_length / 2.0
             self.moves.append([score, move])
 
+    def join(self, game):
+        """Adds a CPU player to a game.
+        """
+        players = Player.all()
+        players.filter('user =', users.User('cpu@mnk'))
+
+        # Choose first CPU player that is not already in the game.
+        for player in players:
+            if player.key() not in game.players:
+                player.join(game)
+                self.player = player
+                return
+
+        # Create a new CPU player.
+        player = Player(user = users.User('cpu@mnk'),
+                        nickname = 'CPU')
+        player.put()
+
+        player.join(game)
+        self.player = player
+
     def move(self, game):
         """Performs an "intelligent" move.
 
@@ -154,10 +179,12 @@ class CpuPlayer(object):
         1. If CPU can win, do so!
         2. If an opponent has a row that can result in a win next turn, block
            it.
-        3. Find the longest rows the CPU player has that can grow long enough
-           to result in a win and extend one of them.
+        3. Value all possible moves and choose the one with the highest value.
         4. Place a tile near the middle of the board.
         """
+        if not self.player:
+            raise CpuError('Can not move before being assigned a player.')
+        
         self.board = game.unpack_board()
         self.index = game.players.index(self.player.key()) + 1
 
@@ -378,7 +405,7 @@ class RuleSet(db.Model):
         """
         if self.exact:
             raise NotImplementedError('Support for exact k requirement has not '
-                                      'been implemented yet')
+                                      'been implemented yet.')
 
         ca, cb, cc, cd = 0, 0, 0, 0
         for i in xrange(-self.k + 1, self.k):
@@ -453,16 +480,16 @@ class Game(db.Model):
 
         self.update_player_names()
         self.put(True)
-        self.handle_cpu()
 
     def handle_cpu(self):
+        """If the current player is a CPU player, makes a move.
+        """
         if self.state != 'playing': return
 
-        cpu = CpuPlayer()
-        key = cpu.player.key()
-        if key in self.players:
-            if self.players.index(key) + 1 == self.current_player:
-                cpu.move(self)
+        player = db.get(self.players[self.current_player - 1])
+        if player.user == users.User('cpu@mnk'):
+            cpu = CpuPlayer(player)
+            cpu.move(self)
     
     def move(self, player, x, y):
         """Puts a tile at the specified coordinates and makes sure all game
@@ -520,7 +547,6 @@ class Game(db.Model):
             self.current_player = rs.whose_turn(self.turn)
 
         self.put(True)
-        self.handle_cpu()
 
     def pack_board(self):
         """Packs a list of lists into a list of strings, where each character

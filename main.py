@@ -28,18 +28,31 @@ from google.appengine.ext import db, webapp
 import wsgiref.handlers
 import monkey, re, util
 
+class Error(Exception):
+    pass
+
+# TODO:
+# * Refactor method names so that they are verbs and are named consistently.
+# * x_id -> x -- Use as an id if it's an int, otherwise use as an instance.
+#                Improves speed when one method calls another (the instance can
+#                be reused rather than being fetched again.)
 class GameService(util.ServiceHandler):
     """Methods that can be called through HTTP (intended to be called by
-    JavaScript through an XmlHttpRequest object.
+    JavaScript through an XmlHttpRequest object.)
     """
     def add_cpu_player(self, game_id):
-        """Adds the CPU player to a game.
+        """Adds a CPU player to a game.
         """
         game = monkey.Game.get_by_id(game_id)
-        if not game: raise ValueError('Invalid game id.')
+        if not game:
+            raise ValueError('Invalid game id.')
+
+        player = monkey.Player.get_current(self)
+        if not player.key() in game.players:
+            raise Error('You cannot add a CPU player to a game you\'re not in.')
 
         cpu = monkey.CpuPlayer()
-        cpu.player.join(game)
+        cpu.join(game)
 
         return self.status(game_id)
 
@@ -125,7 +138,7 @@ class GameService(util.ServiceHandler):
             playing.filter('state =', 'playing')
             playing.order('-last_update')
 
-            results = filter(lambda g: pkey not in g.players, playing.fetch(10))
+            results = playing.fetch(10)
         elif mode == 'past':
             history = monkey.Game.gql('WHERE state IN :1 AND '
                                       'players = :2 ORDER BY last_update DESC',
@@ -207,7 +220,7 @@ class GameService(util.ServiceHandler):
         else:
             playing_as = 0
         
-        return {
+        status = {
             'players': game.player_names,
             'board': game.unpack_board(),
             'playing_as': playing_as,
@@ -216,9 +229,9 @@ class GameService(util.ServiceHandler):
             'turn': game.turn,
             'rule_set_id': game.rule_set.key().id() }
 
-class HomePage(util.ExtendedHandler):
-    def get(self):
-        self.template('home.html')
+        game.handle_cpu()
+
+        return status
 
 def main():
     application = webapp.WSGIApplication([
