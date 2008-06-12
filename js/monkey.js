@@ -85,7 +85,7 @@ var MonkeyService = new Class({
     },
 
     addCpuPlayer: function (gameId, onSuccess, onError) {
-        this.call('add_cpu_player', { game_id: gameId }, onSuccess, onError);
+        this.call('add_cpu_player', { game: gameId }, onSuccess, onError);
     },
 
     changeNick: function (newNick, onSuccess, onError) {
@@ -93,15 +93,15 @@ var MonkeyService = new Class({
     },
 
     createGame: function (ruleSetId, onSuccess, onError) {
-        this.call('create', { rule_set_id: ruleSetId }, onSuccess, onError);
+        this.call('create_game', { rule_set: ruleSetId }, onSuccess, onError);
     },
 
     gameStatus: function (gameId, turn, onSuccess, onError) {
-        this.call('status', { game_id: gameId, turn: turn }, onSuccess, onError);
+        this.call('get_game_status', { game: gameId, turn: turn }, onSuccess, onError);
     },
     
     getRuleSets: function (onSuccess, onError) {
-        this.call('rule_sets', {}, onSuccess, onError);
+        this.call('get_rule_sets', {}, onSuccess, onError);
     },
     
     getPlayerInfo: function (onSuccess, onError) {
@@ -109,20 +109,20 @@ var MonkeyService = new Class({
     },
 
     joinGame: function(gameId, onSuccess, onError) {
-        this.call('join', { 'game_id': gameId }, onSuccess, onError);
+        this.call('join_game', { game: gameId }, onSuccess, onError);
     },
     
     leaveGame: function (gameId, onSuccess, onError) {
-        this.call('leave', { 'game_id': gameId }, onSuccess, onError);
+        this.call('leave_game', { game: gameId }, onSuccess, onError);
     },
 
     listGames: function (mode, onSuccess, onError) {
         var params = mode ? { mode: mode } : {};
-        this.call('list', params, onSuccess, onError);
+        this.call('get_games', params, onSuccess, onError);
     },
     
     move: function (gameId, x, y, onSuccess, onError) {
-        this.call('move', { game_id: gameId, 'x': x, 'y': y }, onSuccess, onError);
+        this.call('put_tile', { game: gameId, x: x, y: y }, onSuccess, onError);
     }
 });
 
@@ -279,7 +279,7 @@ var MonkeyClient = new Class({
                     text: 'Waiting for player to join...'
                 }):
                 new Element('a', {
-                    events: { click: function () { mc.goToGame(game, true); mc.joinGame.bind(mc, game.id); } },
+                    events: { click: mc.joinGame.bind(mc, [game.id, game]) },
                     href: '#' + game.id,
                     text: 'Join game'
                 })
@@ -319,7 +319,7 @@ var MonkeyClient = new Class({
                     }).adopt(
                         new Element('button', {
                             events: {
-                                click: function () { this.disabled = true; mc.goToGame(g.id, g); }
+                                click: mc.goToGame.bind(mc, [g.id, g])
                             },
                             text: g.state == 'playing' && g.playing_as > 0 ? 'Play' : 'View'
                         })
@@ -518,8 +518,10 @@ var MonkeyClient = new Class({
         }).inject(mc.html.player);
     },
     
-    joinGame: function (gameId) {
+    joinGame: function (gameId, game) {
         var mc = this;
+
+        if (game) mc.goToGame(gameId, game, true);
         mc.service.joinGame(gameId, function (game) {
             mc.goToGame(gameId, game);
         });
