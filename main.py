@@ -26,9 +26,12 @@ from google.appengine.api import users
 from google.appengine.ext import db, webapp
 
 import wsgiref.handlers
+
+from datetime import datetime, timedelta
 import monkey, re, util
 
 class Error(Exception):
+    """Base of all exceptions in the MoNKey! game interface."""
     pass
 
 class GameService(util.ServiceHandler):
@@ -53,6 +56,8 @@ class GameService(util.ServiceHandler):
         return self.get_game_status(game)
 
     def change_nickname(self, nickname):
+        """Changes the nickname of the current player.
+        """
         player = monkey.Player.get_current(self)
         player.rename(nickname)
         return self.get_player_info()
@@ -151,8 +156,26 @@ class GameService(util.ServiceHandler):
         else:
             raise ValueError('Invalid mode.')
 
+        now = datetime.utcnow()
         games = []
         for game in results:
+            # Don't include games that can be considered abandoned.
+            # - Games that are waiting for players are considered abandoned
+            #   after six hours.
+            # - Games that are in play are considered abandoned after 48 hours.
+            age = now - game.last_update
+            age = age.seconds / 3600.0 + age.days / 24.0
+            if ((game.state == 'waiting' and age > 6) or
+                (game.state == 'playing' and age > 48)):
+                # Abort the game to speed up future queries.
+                game.abort()
+
+                # break instead of continue so that only one game is aborted per
+                # request (spreads out load between requests if many games have
+                # timed out since last request.)
+                break
+
+            # Determine the position of the player if the player is in the game.
             if pkey in game.players:
                 playing_as = game.players.index(pkey) + 1
             else:

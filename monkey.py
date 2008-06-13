@@ -42,6 +42,10 @@ class Error(Exception):
     """Base of all exceptions in the monkey module."""
     pass
 
+class AbortError(Error):
+    """Thrown when a game cannot be aborted."""
+    pass
+
 class CpuError(Error):
     """Thrown when the AI fails."""
     pass
@@ -54,9 +58,17 @@ class LeaveError(Error):
     """Thrown when a player cannot leave a game."""
     pass
 
+class LogInError(Error):
+    """Thrown when a login attempt fails."""
+    pass
+
 class MoveError(Error):
     """Thrown when a move cannot be made."""
     pass
+
+class PlayerNameError(Error):
+    """Thrown when an error related to the name of a player is encountered.
+    """
 
 class ForcedMove(Exception):
     """Special exception for stopping board scanning and returning a position
@@ -318,7 +330,7 @@ class Player(db.Model):
         return player
 
     @staticmethod
-    def get_current(handler = None):
+    def get_current(handler):
         """Retrieves a Player instance for the currently logged in user.
         """
         curuser = users.get_current_user()
@@ -344,6 +356,81 @@ class Player(db.Model):
 
         return player
 
+    @staticmethod
+    def log_in(nickname, password, handler):
+        """Retrieves a player instance, based on a nickname and a password, and
+        starts a session.
+
+        The SHA-256 hash of the password must match the hash stored in the
+        database, otherwise an exception will be raised.
+        """
+        player = Player.all().filter('nickname =', nickname).get()
+        if not player:
+            raise LogInError('Could not find a player with the specified '
+                             'nickname.')
+
+        if player.user != users.User('player@mnk'):
+            raise LogInError('Cannot log in as that user.')
+
+        if hashlib.sha256(password).hexdigest() != player.password:
+            raise LogInError('Invalid password.')
+
+        player.start_session(handler)
+        return player
+
+    @staticmethod
+    def register(nickname, password, handler = None):
+        """Creates a new player that is registered to the application (instead
+        of using Google Accounts.)
+
+        Only the SHA-256 hash of the password will be stored so that in case the
+        database should be exposed, the passwords would not be of any use to the
+        attacker.
+        """
+        try:
+            Player.validate(nickname)
+        except PlayerNameError, e:
+            raise RegisterError('Could not use nickname (%s)' % (e))
+
+        if len(password) < 4:
+            raise RegisterError('Password should be at least 4 characters '
+                                'long.')
+
+        player = Player(user = users.User('player@mnk'),
+                        nickname = nickname,
+                        password = hashlib.sha256(password).hexdigest())
+
+        if handler:
+            player.start_session(handler)
+        else:
+            player.put()
+
+        return player
+        
+    @staticmethod
+    def validate(nickname):
+        """Validates a nickname and throws an extension if it's invalid.
+        """
+        if nickname in ('Anonymous', 'CPU'):
+            raise PlayerNameError(nickname + ' is a reserved nickname.')
+        
+        if not re.match('^[A-Za-z]([\\-\\._ ]?[A-Z0-9a-z]+)*$', nickname):
+            raise PlayerNameError('Nickname should start with a letter, '
+                                  'followed by letters and/or digits, '
+                                  'optionally with dashes, periods, '
+                                  'underscores or spaces inbetween.')
+        if len(nickname) < 3:
+            raise PlayerNameError('Nickname should be at least three '
+                                  'characters long.')
+        if len(nickname) > 20:
+            raise PlayerNameError('Nickname must not be any longer than 20 '
+                                  'characters.')
+
+        if Player.all().filter('nickname =', nickname).count() > 0:
+            raise PlayerNameError('Nickname is already in use.')
+
+        return True
+
     def display_name(self):
         return '%s (%d)' % (self.nickname, self.wins)
 
@@ -363,12 +450,12 @@ class Player(db.Model):
     def rename(self, nickname):
         """Changes the nickname of the player.
         """
-        if not re.match('^[A-Za-z]([\\-\\._ ]?[A-Z0-9a-z]+)*$', nickname):
-            raise ValueError('Invalid nickname.')
-        if len(nickname) < 3:
-            raise ValueError('Nickname too short.')
-        if len(nickname) > 20:
-            raise ValueError('Nickname too long.')
+        if nickname == self.nickname: return
+
+        if nickname == 'Anonymous' and self.user == users.User('anonymous@mnk'):
+            pass
+        else:
+            Player.validate(nickname)
 
         self.nickname = nickname
         self.put()
@@ -380,6 +467,18 @@ class Player(db.Model):
         for game in games:
             game.update_player_names()
             game.put()
+
+    def end_session(self, handler):
+        """Removes a session from the database and the client, effectively
+        logging the player out.
+        """
+        self.session = None
+        self.expires = None
+        self.put()
+        
+        cookie = 'session=; expires=Fri, 31-Jul-1987 03:00:00 GMT'
+        handler.response.headers['Set-Cookie'] = cookie
+        del handler.request.cookies['session']
 
     def start_session(self, handler):
         """Gives the player a session id and stores it as a cookie in the user's
@@ -502,6 +601,20 @@ class Game(db.Model):
         self.update_player_names()
         self.put(True)
 
+    def abort(self):
+        """Aborts a game if it is in play or removes it if it's waiting for more
+        players.
+        """
+        if self.state == 'waiting':
+            self.delete()
+        elif self.state == 'playing':
+            self.state = 'aborted'
+            self.turn = -1
+            self.put(True)
+        else:
+            raise AbortError('Cannot abort a game that has already been '
+                             'completed.')
+
     def handle_cpu(self):
         """If the current player is a CPU player, makes a move.
         """
@@ -600,18 +713,27 @@ class Game(db.Model):
             raise LeaveError('Player is not in game.')
 
         if self.state == 'waiting':
-            if len(self.players) > 1:
-                self.players.remove(player.key())
+            self.players.remove(player.key())
+
+            # Determine the number of non-CPU players.
+            humans = len(self.players)
+            for pkey in self.players:
+                if db.get(pkey).user == users.User('cpu@mnk'):
+                    humans -= 1
+
+            # Only keep the game if there are non-CPU players left in the game.
+            if humans > 0:
                 self.update_player_names()
                 self.put(True)
             else:
                 self.delete()
         elif self.state == 'playing':
-            self.state = 'aborted'
-            self.turn = -1
-            self.put(True)
+            # A player cannot actually leave a game that is in play. Instead,
+            # the game is aborted and becomes unplayable.
+            self.abort()
         else:
-            raise LeaveError('Cannot leave game.')
+            raise LeaveError('Cannot leave a game that has already been '
+                             'completed.')
 
     def unpack_board(self):
         """Unpacks a list of strings into a list of lists where each character
