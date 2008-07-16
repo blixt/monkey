@@ -409,7 +409,7 @@ class Player(db.Model):
         
     @staticmethod
     def validate(nickname):
-        """Validates a nickname and throws an extension if it's invalid.
+        """Validates a nickname and throws an exception if it's invalid.
         """
         if nickname in ('Anonymous', 'CPU'):
             raise PlayerNameError(nickname + ' is a reserved nickname.')

@@ -92,6 +92,10 @@ var MonkeyService = new Class({
         this.call('change_nickname', { nickname: newNick }, onSuccess, onError);
     },
 
+    cpuBattle: function (ruleSetId, onSuccess, onError) {
+        this.call('cpu_battle', { rule_set: ruleSetId }, onSuccess, onError);
+    },
+
     createGame: function (ruleSetId, onSuccess, onError) {
         this.call('create_game', { rule_set: ruleSetId }, onSuccess, onError);
     },
@@ -179,6 +183,15 @@ var MonkeyClient = new Class({
                             }
                         },
                         text: 'Create game'
+                    }),
+                    mc.html.cpuBattle = new Element('button', {
+                        events: {
+                            click: function () {
+                                this.disabled = true;
+                                mc.cpuBattle(parseInt(ruleSets.value));
+                            }
+                        },
+                        text: 'CPU battle'
                     })
                 ),
                 new Element('ul').adopt(
@@ -248,6 +261,10 @@ var MonkeyClient = new Class({
     
     addCpuPlayer: function () {
         this.service.addCpuPlayer(this.gameId, this.refresh.bind(this));
+    },
+    
+    cpuBattle: function (ruleSetId) {
+        this.service.cpuBattle(ruleSetId, this.goToGame.bind(this));
     },
     
     createGame: function (ruleSetId) {
@@ -473,7 +490,7 @@ var MonkeyClient = new Class({
         } else if (mc.game.state == 'waiting') {
             mc.timer = mc.refresh.delay(5000, mc);
         } else if (mc.game.state == 'playing') {
-            mc.timer = mc.refresh.delay(1000, mc);
+            mc.timer = mc.refresh.delay(750, mc);
         }
     },
     
@@ -629,6 +646,7 @@ var MonkeyClient = new Class({
                 this.game = null;
                 this.gameId = null;
 
+                this.html.cpuBattle.disabled = false;
                 this.html.createGame.disabled = false;
                 this.html.main.set('class', 'monkey in-lobby');
                 this.html.lobby.inject(this.html.main);

@@ -61,6 +61,22 @@ class GameService(util.ServiceHandler):
         player = monkey.Player.get_current(self)
         player.rename(nickname)
         return self.get_player_info()
+
+    def cpu_battle(self, rule_set):
+        """Creates a new game with only CPU players.
+        """
+        if not isinstance(rule_set, monkey.RuleSet):
+            rule_set = monkey.RuleSet.get_by_id(rule_set)
+            if not rule_set: raise ValueError('Invalid rule set id.')
+
+        game = monkey.Game(rule_set = rule_set)
+        game.put()
+
+        for i in xrange(rule_set.num_players):
+            cpu = monkey.CpuPlayer()
+            cpu.join(game)
+
+        return game.key().id()
         
     def create_game(self, rule_set):
         """Creates a new game.
@@ -164,7 +180,7 @@ class GameService(util.ServiceHandler):
             #   after six hours.
             # - Games that are in play are considered abandoned after 48 hours.
             age = now - game.last_update
-            age = age.seconds / 3600.0 + age.days / 24.0
+            age = age.seconds / 3600.0 + age.days * 24.0
             if ((game.state == 'waiting' and age > 6) or
                 (game.state == 'playing' and age > 48)):
                 # Abort the game to speed up future queries.
