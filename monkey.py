@@ -1,7 +1,7 @@
 # -*- coding: cp1252 -*-
 #
-# Copyright (c) 2008 Andreas Blixt <andreas@blixt.org>
-# Project homepage: <http://code.google.com/p/monkey-web/>
+# Copyright (c) 2008-2010 Andreas Blixt <andreas@blixt.org>
+# Project homepage: <http://github.com/blixt/monkey>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.

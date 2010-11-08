@@ -1,12 +1,14 @@
 #
-# Copyright (c) 2008 Andreas Blixt <andreas@blixt.org>
-# Project homepage: <http://code.google.com/p/blixt/>
+# Copyright (c) 2008-2010 Andreas Blixt <andreas@blixt.org>
+# Project homepage: <http://github.com/blixt/monkey>
 #
 # License: MIT license <http://www.opensource.org/licenses/mit-license.php>
 #
 
 """Utility classes and functions for Google App Engine applications.
 """
+
+import logging
 
 from google.appengine.api import users
 from google.appengine.ext import webapp
@@ -81,6 +83,8 @@ class ServiceHandler(webapp.RequestHandler):
                 out['status'] = 'success'
                 out['response'] = attr(**args) if callable(attr) else attr
             except Exception, e:
+                logging.exception('An exception occurred when calling %s%r.', action, args)
+
                 out['status'] = 'error'
                 out['response'] = { 'message': str(e),
                                     'type': e.__class__.__name__ }
