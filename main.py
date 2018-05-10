@@ -228,7 +228,7 @@ class GameService(util.ServiceHandler):
         """Gets all rule sets.
         """
         rule_sets = []
-        for rule_set in monkey.RuleSet.all().order('name'):
+        for rule_set in monkey.RuleSet.get_list():
             rule_sets.append({ 'id': rule_set.key().id(),
                                'name': rule_set.name,
                                'num_games': rule_set.num_games,

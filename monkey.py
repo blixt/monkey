@@ -519,6 +519,19 @@ class RuleSet(db.Model):
     q = db.IntegerProperty(default = 1, validator = lambda v: v > 0,
                            verbose_name = 'Stones first turn')
 
+    @classmethod
+    def get_list(cls):
+        rule_sets = list(cls.all().order('name'))
+        if not rule_sets:
+            rule_sets = [
+                cls(name='Tic-tac-toe', m=3, n=3, k=3),
+                cls(name='Free-style gomoku', m=19, n=19, k=5),
+                cls(name='Four player gomoku', m=19, n=19, k=5, num_players=4),
+                cls(name='Connect6', m=19, n=19, k=6, p=2, q=1),
+            ]
+            db.put(rule_sets)
+        return rule_sets
+
     def is_win(self, board, player, x, y):
         """Tests whether a winning line for the specified player crosses the
         given coordinates on the supplied board.
