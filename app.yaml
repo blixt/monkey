@@ -18,7 +18,7 @@ handlers:
 
 - url: /(.*\.(css|js))
   static_files: \2/\1
-  upload: (css|js)/(.*\.\1)
+  upload: (css|js)/(.*\.css|.*\.js)
 
 - url: /(.*\.(gif|jpg|png))
   static_files: img/\1
